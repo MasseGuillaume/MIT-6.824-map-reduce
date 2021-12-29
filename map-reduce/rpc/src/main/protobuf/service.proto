@@ -1,18 +1,15 @@
 syntax = "proto3";
 
-import "google/protobuf/timestamp.proto";
 
 option java_multiple_files = true;
-option java_package = "example.myapp.helloworld.grpc";
+
+option java_package = "grpc";
 option java_outer_classname = "HelloWorldProto";
 
 package helloworld;
 
 service GreeterService {
     rpc SayHello (HelloRequest) returns (HelloReply) {}
-    rpc ItKeepsTalking (stream HelloRequest) returns (HelloReply) {}
-    rpc ItKeepsReplying (HelloRequest) returns (stream HelloReply) {}
-    rpc StreamHellos (stream HelloRequest) returns (stream HelloReply) {}
 }
 
 message HelloRequest {
@@ -21,5 +18,4 @@ message HelloRequest {
 
 message HelloReply {
     string message = 1;
-    google.protobuf.Timestamp timestamp = 2;
 }

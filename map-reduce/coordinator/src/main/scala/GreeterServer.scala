@@ -1,6 +1,4 @@
-package example.myapp.helloworld
-
-import example.myapp.helloworld.grpc._
+import grpc._
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.{HttpRequest, HttpResponse}
