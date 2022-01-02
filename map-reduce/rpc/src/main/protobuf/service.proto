@@ -1,21 +1,47 @@
 syntax = "proto3";
 
+package grpc;
+
 
 option java_multiple_files = true;
-
 option java_package = "grpc";
-option java_outer_classname = "HelloWorldProto";
 
-package helloworld;
+import "google/protobuf/empty.proto";
 
-service GreeterService {
-    rpc SayHello (HelloRequest) returns (HelloReply) {}
+
+service Worker {
+  rpc Map (MapRequest) returns (MapResponse);
+  rpc MapDone (google.protobuf.Empty) returns (MapResponse);
+
+  rpc ReadIntermediateFile (IntermediateFile) returns (IntermediateFileContent);
+  rpc Reduce (ReduceRequest) returns (ReduceResponse);
 }
 
-message HelloRequest {
-    string name = 1;
+message DistributedFile {
+  string filename = 1;
 }
 
-message HelloReply {
-    string message = 1;
+message MapRequest {
+  repeated DistributedFile inputFiles = 1;
+}
+
+message MapResponse {
+  repeated IntermediateFile outputs = 1;
+}
+
+message IntermediateFile {
+  string filename = 1;
+}
+
+message IntermediateFileContent {
+  string content = 1;
+}
+
+message ReduceRequest {
+  string key = 1;
+  repeated IntermediateFile outputs = 2;
+}
+
+message ReduceResponse {
+  repeated DistributedFile outputFiles = 1;
 }
