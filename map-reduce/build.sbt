@@ -15,5 +15,5 @@ lazy val rpc = project.in(file("rpc")).settings(
 ).enablePlugins(AkkaGrpcPlugin)
 
 // for tests
-lazy val sequential = project.in(file("sequential")).dependsOn(api, wordcount)
+lazy val sequential = project.in(file("sequential")).dependsOn(api)
 lazy val wordcount = project.in(file("apps/wordcount")).dependsOn(api)

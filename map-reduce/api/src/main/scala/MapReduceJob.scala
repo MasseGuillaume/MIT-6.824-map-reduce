@@ -7,22 +7,26 @@ trait Writer[V] {
   def write(output: V): String
 }
 
-trait MapReduceJob[V1, K2, V2, K3, V3] {
-  type IntermediateKey = K2
-  type IntermediateValue = V2
-  type Intermediate = (K2, V2)
-
-  type Output = (K3, V3)
-
-  val ordering: Ordering[K2]
+trait MapReduceJob {
   
-  val readerInput: Reader[V1]
-  val writerIntermediate: Writer[(K2, V2)]
-  val readerIntermediate: Reader[(K2, V2)]
-  val writerOutput: Writer[(K3, V3)]
+  type InputValue
+  
+  type IntermediateKey
+  type IntermediateValue
+  
+  type OutputKey
+  type OutputValue
 
 
-  def map(key: String, value: V1)(emit: (K2, V2) => Unit): Unit
-  def partition(key: K2, reducerCount: Int): Int = key.hashCode % reducerCount
-  def reduce(key: K2, values: List[V2])(emit: (K3, V3) => Unit): Unit
+  val ordering: Ordering[IntermediateKey]
+  
+  val readerInput: Reader[InputValue]
+  val writerIntermediate: Writer[(IntermediateKey, IntermediateValue)]
+  val readerIntermediate: Reader[(IntermediateKey, IntermediateValue)]
+  val writerOutput: Writer[(OutputKey, OutputValue)]
+
+
+  def map(key: String, value: InputValue)(emit: (IntermediateKey, IntermediateValue) => Unit): Unit
+  def partition(key: IntermediateKey, reducerCount: Int): Int = key.hashCode % reducerCount
+  def reduce(key: IntermediateKey, values: List[IntermediateValue])(emit: (OutputKey, OutputValue) => Unit): Unit
 }

@@ -27,7 +27,7 @@ class WorkerServiceImpl(implicit mat: Materializer) extends Worker {
       request.inputFiles.flatMap{ file =>
         val content = Files.readString(hdfsStub.resolve(file.filename))
         
-        val value = job.readerV1.read(content)
+        val value = job.readerInput.read(content)
         job.map(file.filename, value)((k, v) => {
           // emit k - v
         })
@@ -35,9 +35,8 @@ class WorkerServiceImpl(implicit mat: Materializer) extends Worker {
         ???
       }
 
-      MapResponse(
-        
-      )
+      // todo: partial result
+      MapResponse(Nil)
     }
   }
 

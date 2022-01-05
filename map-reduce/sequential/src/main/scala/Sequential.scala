@@ -1,12 +1,13 @@
 import java.nio.file._
 
 
+
 object Main {
   def main(args: Array[String]): Unit = {
-    val app = new WordCount
-    // todo load class with args.head
 
-    val intermediate = List.newBuilder[app.Intermediate]
+    val app = FindMapReduceJob(Paths.get(args.head))
+    
+    val intermediate = List.newBuilder[(app.IntermediateKey, app.IntermediateValue)]
 
     for (filename <- args.tail) {
       val content = Files.readString(Paths.get(filename))

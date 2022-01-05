@@ -1,14 +1,25 @@
-class WordCount extends MapReduceJob[String, String, Int, String, Int] {
+class WordCount extends MapReduceJob {
+  type InputValue = String
+
+  type IntermediateKey = String
+  type IntermediateValue = Int
+
+  type OutputKey = String
+  type OutputValue = Int
+
   val ordering: Ordering[String] = implicitly[Ordering[String]]
 
   val readerInput: Reader[String] = content => content
-  val writerIntermediate: Writer[(String, Int)] = { case (word, count) => s"$word $count" }
+  val writerIntermediate: Writer[(String, Int)] = { case (word, count) =>
+    s"$word $count"
+  }
   val readerIntermediate: Reader[(String, Int)] = content => {
     val List(word, count) = content.split(' ').toList
     (word, count.toInt)
   }
-  val writerOutput: Writer[(String, Int)] = { case (word, count) => s"$word $count" }
-
+  val writerOutput: Writer[(String, Int)] = { case (word, count) =>
+    s"$word $count"
+  }
 
   def map(key: String, value: String)(emit: (String, Int) => Unit): Unit = {
     for (word <- value.split("\\W+")) {
@@ -16,7 +27,9 @@ class WordCount extends MapReduceJob[String, String, Int, String, Int] {
     }
   }
 
-  def reduce(key: String, values: List[Int])(emit: (String, Int) => Unit): Unit = {
+  def reduce(key: String, values: List[Int])(
+      emit: (String, Int) => Unit
+  ): Unit = {
     emit(key, values.size)
   }
 }
