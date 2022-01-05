@@ -1,4 +1,4 @@
-class WordCount extends MapReduceJob {
+class WordCount extends MapReduceApp {
   type InputValue = String
 
   type IntermediateKey = String

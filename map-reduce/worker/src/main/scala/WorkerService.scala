@@ -8,11 +8,8 @@ import java.nio.file._
 
 import com.google.protobuf.empty.Empty
 
-class WorkerServiceImpl(implicit mat: Materializer) extends Worker {
+class WorkerServiceImpl(app: MapReduceApp)(implicit mat: Materializer) extends Worker {
   import mat.executionContext
-
-  // todo configurable
-  private val job = new WordCount
 
   // for intermediate
   private val base = Paths.get("tasks")
@@ -27,8 +24,8 @@ class WorkerServiceImpl(implicit mat: Materializer) extends Worker {
       request.inputFiles.flatMap{ file =>
         val content = Files.readString(hdfsStub.resolve(file.filename))
         
-        val value = job.readerInput.read(content)
-        job.map(file.filename, value)((k, v) => {
+        val value = app.readerInput.read(content)
+        app.map(file.filename, value)((k, v) => {
           // emit k - v
         })
 
@@ -56,30 +53,3 @@ class WorkerServiceImpl(implicit mat: Materializer) extends Worker {
     ???
   }
 }
-
-
-
-
-
-// class WordCount extends MapReduceJob[String, String, Int, String, Int] {
-//   val ordering: Ordering[String] = implicitly[Ordering[String]]
-
-//   val readerV1: Reader[String] = content => content
-//   val writerK2V2: Writer[(String, Int)] = { case (word, count) => s"$word $count" }
-//   val writerK3V3: Writer[(String, Int)] = { case (word, count) => s"$word $count" }
-//   val readerK2V2: Reader[(String, Int)] = content => {
-//     val List(word, count) = content.split(' ').toList
-//     (word, count.toInt)
-//   }
-
-
-//   def map(key: String, value: String)(emit: (String, Int) => Unit): Unit = {
-//     for (word <- value.split("\\W+")) {
-//       emit(word, 1)
-//     }
-//   }
-
-//   def reduce(key: String, values: List[Int])(emit: (String, Int) => Unit): Unit = {
-//     emit(key, values.size)
-//   }
-// }

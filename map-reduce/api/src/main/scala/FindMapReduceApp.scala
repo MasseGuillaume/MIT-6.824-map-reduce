@@ -7,8 +7,8 @@ import java.nio.file.{Path, Files, FileSystems, SimpleFileVisitor, FileVisitResu
 
 import scala.util.Try
 
-object FindMapReduceJob {
-  def apply(path: Path): MapReduceJob = {
+object FindMapReduceApp {
+  def apply(path: Path): MapReduceApp = {
     try {
       val url = path.toUri().toURL()
       val parentClassloader = this.getClass().getClassLoader()
@@ -22,7 +22,7 @@ object FindMapReduceJob {
             if (Files.isRegularFile(file) && file.toString.endsWith(classExt)) {
               val className = file.toString.stripSuffix(classExt).replace('/', '.').drop(1)
               Try(classloader.loadClass(className)).map{cls =>
-                val isMapReduce = cls.getInterfaces.exists(_ == classOf[MapReduceJob])
+                val isMapReduce = cls.getInterfaces.exists(_ == classOf[MapReduceApp])
                 if (isMapReduce) {
                   found = Some(cls)
                   FileVisitResult.TERMINATE
@@ -39,7 +39,7 @@ object FindMapReduceJob {
       }
       val cls = found.getOrElse(throw new Exception("cannot find MapReduceJob"))
       val cons = cls.getConstructor()
-      cons.newInstance().asInstanceOf[MapReduceJob]
+      cons.newInstance().asInstanceOf[MapReduceApp]
     } catch {
       case e: Exception =>
         e.printStackTrace()

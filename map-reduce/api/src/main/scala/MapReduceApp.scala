@@ -7,7 +7,7 @@ trait Writer[V] {
   def write(output: V): String
 }
 
-trait MapReduceJob {
+trait MapReduceApp {
   
   type InputValue
   

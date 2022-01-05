@@ -5,7 +5,7 @@ import java.nio.file._
 object Main {
   def main(args: Array[String]): Unit = {
 
-    val app = FindMapReduceJob(Paths.get(args.head))
+    val app = FindMapReduceApp(Paths.get(args.head))
     
     val intermediate = List.newBuilder[(app.IntermediateKey, app.IntermediateValue)]
 
