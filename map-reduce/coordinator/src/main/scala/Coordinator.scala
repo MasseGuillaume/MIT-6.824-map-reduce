@@ -1,14 +1,13 @@
 import grpc._
 
 import akka.grpc.GrpcClientSettings
-
-import akka.{Done, NotUsed}
 import akka.actor.ActorSystem
-import akka.stream.scaladsl.Source
+import akka.Done
 
-import scala.concurrent.Future
-import scala.concurrent.duration._
-import scala.util.{Failure, Success}
+import scala.concurrent.{Future, ExecutionContext}
+import scala.concurrent.Await
+import scala.concurrent.duration.Duration
+
 
 object Coordinator {
   def main(args: Array[String]): Unit = {
@@ -16,17 +15,34 @@ object Coordinator {
     implicit val sys = ActorSystem()
     implicit val ec = sys.dispatcher
 
-    val workerSettings =
-      GrpcClientSettings
-        .connectToServiceAt("127.0.0.1", 8080)
-        .withTls(false)
+    val clients = {
+      val ports = args.head.split(",").map(_.toInt).toList
+      ports.map(port =>
+        WorkerClient(
+          GrpcClientSettings
+            .connectToServiceAt("127.0.0.1", port)
+            .withTls(false)
+        )
+      )
+    }
+    val inputs = args.tail.toList
+    val coordinator = new Coordinator(clients, inputs)
 
-    val client = WorkerClient(workerSettings)
+    Await.result(coordinator.run(), Duration.Inf)
+  }
+}
 
-    //
-    val inputs = args
+class Coordinator(clients: List[WorkerClient], inputs: List[String])(implicit ec: ExecutionContext) {
+  var idle = clients
+
+  def run(): Future[Done] = {
+
+    
 
 
 
+
+    
+    Future(Done)
   }
 }

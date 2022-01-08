@@ -15,5 +15,13 @@ lazy val rpc = project.in(file("rpc")).settings(
 ).enablePlugins(AkkaGrpcPlugin)
 
 // for tests
-lazy val sequential = project.in(file("sequential")).dependsOn(api)
-lazy val wordcount = project.in(file("apps/wordcount")).dependsOn(api)
+lazy val sequential = 
+  project
+    .in(file("sequential"))
+    .dependsOn(api)
+
+lazy val wordcount = 
+  project
+    .in(file("apps/wordcount"))
+    .settings(Compile / Keys.`packageBin` / artifactPath := file("apps/wordcount.jar"))
+    .dependsOn(api)

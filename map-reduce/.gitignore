@@ -1,3 +1,5 @@
 target/
 project/metals
 mr-out-*
+apps/*.jar
+mr-tmp/
