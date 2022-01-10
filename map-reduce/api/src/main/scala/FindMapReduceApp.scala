@@ -1,4 +1,4 @@
-import collection.JavaConverters._
+import scala.jdk.CollectionConverters.IterableHasAsScala
 
 import java.io.File
 import java.net.URLClassLoader

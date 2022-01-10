@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+HERE="`dirname $0`"
+
+java -jar "$HERE/apps/coordinator.jar" "$@"

@@ -2,4 +2,4 @@
 
 HERE="`dirname $0`"
 
-java -jar "$HERE/apps/sequential.jar" "$@"
+java -jar "$HERE/apps/worker.jar" "$@"
