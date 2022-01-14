@@ -11,10 +11,10 @@ import scala.concurrent.{ExecutionContext, Future}
 object WorkerServer {
   def main(args: Array[String]): Unit = {
     args.toList match {
-      case List(appJarPath, portRaw, reducerCountRaw) =>
+      case List(appJarPath, indexRaw, reducerCountRaw) =>
         val app = FindMapReduceApp(Paths.get(args.head))
         val system = ActorSystem("HelloWorld")
-        new WorkerServer(portRaw.toInt, reducerCountRaw.toInt, system).run(app)
+        new WorkerServer(indexRaw.toInt, reducerCountRaw.toInt, system).run(app)
       case _ => 
         sys.error("expected: appJarPath port reducerCount")
         sys.exit(1)
@@ -22,14 +22,15 @@ object WorkerServer {
   }
 }
 
-class WorkerServer(port: Int, reducerCount: Int, system: ActorSystem) {
+class WorkerServer(index: Int, reducerCount: Int, system: ActorSystem) {
   def run(app: MapReduceApp): Future[Http.ServerBinding] = {
     implicit val sys: ActorSystem = system
     implicit val ec: ExecutionContext = sys.dispatcher
 
-    
+    val port = WorkerServiceImpl.portFromIndex(index)
+
     val service: HttpRequest => Future[HttpResponse] =
-      WorkerHandler(new WorkerServiceImpl(app, reducerCount))
+      WorkerHandler(new WorkerServiceImpl(app, reducerCount, index))
 
     val binding = Http().newServerAt("127.0.0.1", port).bind(service)
     binding

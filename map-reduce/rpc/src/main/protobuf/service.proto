@@ -31,6 +31,7 @@ message MapResponse {
 
 message IntermediateFile {
   string filename = 1;
+  int32 port = 2;
 }
 
 message IntermediateFileContent {
@@ -39,8 +40,9 @@ message IntermediateFileContent {
 
 message ReduceRequest {
   string key = 1;
+  repeated IntermediateFile values = 2;
 }
 
 message ReduceResponse {
-  repeated DistributedFile outputFiles = 1;
+  DistributedFile outputFiles = 1;
 }

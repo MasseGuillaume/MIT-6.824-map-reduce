@@ -33,11 +33,14 @@ object Coordinator {
 }
 
 class Coordinator(clients: List[WorkerClient], inputs: List[String])(implicit ec: ExecutionContext) {
-  var idle = clients
+  // var idle = clients
 
   def run(): Future[Done] = {
 
-    
+    inputs.zip(clients).map {
+      case (input, client) =>
+        // ...
+    }
 
     
 

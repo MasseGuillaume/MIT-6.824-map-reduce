@@ -27,7 +27,7 @@ class WordCount extends MapReduceApp {
     }
   }
 
-  def reduce(key: String, values: List[Int])(
+  def reduce(key: String, values: Seq[Int])(
       emit: (String, Int) => Unit
   ): Unit = {
     emit(key, values.size)

@@ -28,5 +28,5 @@ trait MapReduceApp {
 
   def map(key: String, value: InputValue)(emit: (IntermediateKey, IntermediateValue) => Unit): Unit
   def partition(key: IntermediateKey, reducerCount: Int): Int = key.hashCode % reducerCount
-  def reduce(key: IntermediateKey, values: List[IntermediateValue])(emit: (OutputKey, OutputValue) => Unit): Unit
+  def reduce(key: IntermediateKey, values: Seq[IntermediateValue])(emit: (OutputKey, OutputValue) => Unit): Unit
 }
