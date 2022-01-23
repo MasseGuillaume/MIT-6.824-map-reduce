@@ -13,6 +13,7 @@ class WordCount extends MapReduceApp {
   val writerIntermediate: Writer[(String, Int)] = { case (word, count) =>
     s"$word $count"
   }
+  val writerKey: Writer[String] = key => key
   val readerIntermediate: Reader[(String, Int)] = content => {
     val List(word, count) = content.split(' ').toList
     (word, count.toInt)

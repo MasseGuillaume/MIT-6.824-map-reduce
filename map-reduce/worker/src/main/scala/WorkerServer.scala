@@ -27,7 +27,7 @@ class WorkerServer(index: Int, reducerCount: Int, system: ActorSystem) {
     implicit val sys: ActorSystem = system
     implicit val ec: ExecutionContext = sys.dispatcher
 
-    val port = WorkerServiceImpl.portFromIndex(index)
+    val port = WorkerUtils.portFromIndex(index)
 
     val service: HttpRequest => Future[HttpResponse] =
       WorkerHandler(new WorkerServiceImpl(app, reducerCount, index))

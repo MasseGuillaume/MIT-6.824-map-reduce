@@ -30,8 +30,9 @@ message MapResponse {
 }
 
 message IntermediateFile {
-  string filename = 1;
-  int32 port = 2;
+  int32 partition = 1;
+  string filename = 2;
+  int32 port = 3;
 }
 
 message IntermediateFileContent {
@@ -39,8 +40,7 @@ message IntermediateFileContent {
 }
 
 message ReduceRequest {
-  string key = 1;
-  repeated IntermediateFile values = 2;
+  repeated IntermediateFile intputFiles = 1;
 }
 
 message ReduceResponse {

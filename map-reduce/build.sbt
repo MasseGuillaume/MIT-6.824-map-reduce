@@ -5,6 +5,15 @@ ThisBuild / scalacOptions := Seq(
   "-deprecation",
 )
 
+commands += Command.command("build") { state =>
+  "wordcount/package" ::
+    "sequential/assembly" ::
+    "coordinator/assembly" ::
+    "worker/assembly" ::
+    state
+}
+
+
 // duplicated proto files between protobuf-java and akka-protobuf
 ThisBuild / assemblyMergeStrategy := {
   case PathList("google", "protobuf", _ *) => MergeStrategy.first
@@ -20,7 +29,7 @@ lazy val root =
     .aggregate(coordinator, worker, api, rpc, sequential, wordcount)
 
 lazy val api         = project.in(file("api"))
-lazy val coordinator = project.settings(assembly / assemblyOutputPath := file("apps/coordinator.jar")).dependsOn(rpc)
+lazy val coordinator = project.settings(assembly / assemblyOutputPath := file("apps/coordinator.jar")).dependsOn(rpc, api)
 lazy val worker      = project.settings(assembly / assemblyOutputPath := file("apps/worker.jar")).dependsOn(rpc, api)
 lazy val sequential  = project.settings(assembly / assemblyOutputPath := file("apps/sequential.jar")).dependsOn(api)
 
