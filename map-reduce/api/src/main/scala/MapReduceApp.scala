@@ -13,7 +13,6 @@ trait MapReduceApp {
   type IntermediateKey
   type IntermediateValue
 
-  type OutputKey
   type OutputValue
 
   val ordering: Ordering[IntermediateKey]
@@ -22,7 +21,7 @@ trait MapReduceApp {
   val writerIntermediate: Writer[(IntermediateKey, IntermediateValue)]
   val readerIntermediate: Reader[(IntermediateKey, IntermediateValue)]
   val writerKey: Writer[IntermediateKey]
-  val writerOutput: Writer[(OutputKey, OutputValue)]
+  val writerOutput: Writer[OutputValue]
 
   def map(key: String, value: InputValue)(
       emit: (IntermediateKey, IntermediateValue) => Unit
@@ -31,7 +30,7 @@ trait MapReduceApp {
     Math.abs(key.hashCode) % reducerCount
 
   def reduce(key: IntermediateKey, values: Seq[IntermediateValue])(
-      emit: (OutputKey, OutputValue) => Unit
+      emit: OutputValue => Unit
   ): Unit
 }
 

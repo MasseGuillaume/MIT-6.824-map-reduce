@@ -23,9 +23,9 @@ object Main {
       while (j < regions.length && regions(j)._1 == regions(i)._1) {
         j += 1
       }
-      app.reduce(regions(i)._1, regions.slice(i, j).toList.map(_._2)){ (k, v) =>
-        writer.println(app.writerOutput.write((k, v)))
-      }     
+      app.reduce(regions(i)._1, regions.slice(i, j).toList.map(_._2))(v =>
+        writer.println(app.writerOutput.write(v))
+      )
       i = j
     }
 

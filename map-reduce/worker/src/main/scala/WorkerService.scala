@@ -139,9 +139,9 @@ class WorkerServiceImpl(app: MapReduceApp, reducerCount: Int, index: Int)(
             .mapValues(_.map(_._2))
 
         for ((key, values) <- byKey) {
-          app.reduce(key, values)((k, v) => {
-            writer.println(app.writerOutput.write((k, v)))
-          })
+          app.reduce(key, values)(v =>
+            writer.println(app.writerOutput.write(v))
+          )
         }
 
         writer.close()

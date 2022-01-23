@@ -4,8 +4,8 @@ class WordCount extends MapReduceApp {
   type IntermediateKey = String
   type IntermediateValue = Int
 
-  type OutputKey = String
-  type OutputValue = Int
+  
+  type OutputValue = String
 
   val ordering: Ordering[String] = implicitly[Ordering[String]]
 
@@ -18,9 +18,7 @@ class WordCount extends MapReduceApp {
     val List(word, count) = content.split(' ').toList
     (word, count.toInt)
   }
-  val writerOutput: Writer[(String, Int)] = { case (word, count) =>
-    s"$word $count"
-  }
+  val writerOutput: Writer[String] = value => value
 
   def map(key: String, value: String)(emit: (String, Int) => Unit): Unit = {
     for (word <- value.split("\\W+")) {
@@ -29,8 +27,8 @@ class WordCount extends MapReduceApp {
   }
 
   def reduce(key: String, values: Seq[Int])(
-      emit: (String, Int) => Unit
+      emit: String => Unit
   ): Unit = {
-    emit(key, values.size)
+    emit(s"$key ${values.size}")
   }
 }
