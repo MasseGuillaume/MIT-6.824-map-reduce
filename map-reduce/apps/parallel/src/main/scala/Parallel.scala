@@ -1,7 +1,7 @@
 import java.nio.file._
 import java.io.File
 
-object ParallelApp {
+object Parallel {
   def countConcurrentJobs(phase: String): Int = {
     val prefix = s"mr-worker-$phase-"
 
@@ -9,11 +9,11 @@ object ParallelApp {
     // we're running at the same time as them.
     val pid = ProcessHandle.current().pid()
     val pidFile = Paths.get(s"$prefix$pid")
-    Files.writeString(pidFile, "x")
+    println(pidFile.toAbsolutePath)
+    Files.write(pidFile, "x".getBytes())
 
     // are any other workers running?
     // find their PIDs by scanning directory for mr-worker-XXX files.
-
     val runningProcesses = 
       new File(".")
         .listFiles()
@@ -32,13 +32,18 @@ object ParallelApp {
         }
 
     Thread.sleep(1000)
-    Files.delete(pidFile)
+    if (Files.exists(pidFile)) {
+      Files.delete(pidFile)
+    } else {
+      sys.error(s"pid $pid is running more than one task")
+      sys.exit(1)
+    }
 
     runningProcesses
   }
 }
 
-trait ParallelApp extends MapReduceApp {
+trait Parallel extends MapReduceApp {
   type InputValue = String
 
   type IntermediateKey = String

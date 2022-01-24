@@ -11,8 +11,8 @@ import scala.concurrent.{ExecutionContext, Future}
 object WorkerServer {
   def main(args: Array[String]): Unit = {
     args.toList match {
-      case List(appJarPath, indexRaw, reducerCountRaw) =>
-        val app = FindMapReduceApp(Paths.get(args.head))
+      case List(appJarPath, className, indexRaw, reducerCountRaw) =>
+        val app = FindMapReduceApp(Paths.get(args.head), className)
         val system = ActorSystem("HelloWorld")
         new WorkerServer(indexRaw.toInt, reducerCountRaw.toInt, system).run(app)
       case _ => 

@@ -5,39 +5,30 @@ import java.net.URLClassLoader
 import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.{Path, Files, FileSystems, SimpleFileVisitor, FileVisitResult}
 
-import scala.util.Try
+import scala.util.{Try, Success, Failure}
+
+import scala.util.control.NonFatal
 
 object FindMapReduceApp {
-  def apply(path: Path): MapReduceApp = {
+  def apply(path: Path, className: String): MapReduceApp = {
     try {
       val url = path.toUri().toURL()
       val parentClassloader = this.getClass().getClassLoader()
       val classloader = new URLClassLoader(Array(url), parentClassloader)
-      val fs = FileSystems.newFileSystem(path, parentClassloader)
-      val classExt = ".class"
-      var found: Option[Class[_]] = None
-      fs.getRootDirectories().asScala.find { root =>
-        Files.walkFileTree(root, new SimpleFileVisitor[Path]{
-          override def visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult = {
-            if (Files.isRegularFile(file) && file.toString.endsWith(classExt)) {
-              val className = file.toString.stripSuffix(classExt).replace('/', '.').drop(1)
-              Try(classloader.loadClass(className)).map{cls =>
-                val isMapReduce = cls.getInterfaces.exists(_ == classOf[MapReduceApp])
-                if (isMapReduce) {
-                  found = Some(cls)
-                  FileVisitResult.TERMINATE
-                } else {
-                  FileVisitResult.CONTINUE
-                }
-              }.getOrElse(FileVisitResult.CONTINUE)
+
+      val cls = 
+        Try(classloader.loadClass(className)) match {
+          case Success(cls) =>
+            val isMapReduce = classOf[MapReduceApp].isAssignableFrom(cls)
+            if (isMapReduce) {
+              cls
             } else {
-              FileVisitResult.CONTINUE
+              throw new Exception(s"$className does not implement MapReduceApp")
             }
-          }
-        })
-        found.nonEmpty
-      }
-      val cls = found.getOrElse(throw new Exception("cannot find MapReduceJob"))
+          case Failure(e) =>
+            throw e
+        }
+
       val cons = cls.getConstructor()
       cons.newInstance().asInstanceOf[MapReduceApp]
     } catch {

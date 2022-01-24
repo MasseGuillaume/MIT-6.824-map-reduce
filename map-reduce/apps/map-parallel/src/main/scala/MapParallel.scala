@@ -1,10 +1,9 @@
 
-class MapParallelApp extends ParallelApp {
+class MapParallel extends Parallel {
   def map(key: String, value: String)(emit: (String, String) => Unit): Unit = {
-    val ts = System.currentTimeMillis
+    val ts = System.nanoTime
     val pid = ProcessHandle.current().pid()
-    val n = ParallelApp.countConcurrentJobs("map")
-    println("MapParallelApp n=" + n)
+    val n = Parallel.countConcurrentJobs("map")
     emit(s"times-$pid", ts.toString)
     emit(s"parallel-$pid", n.toString)
   }

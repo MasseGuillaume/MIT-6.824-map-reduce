@@ -6,10 +6,17 @@ ThisBuild / scalacOptions := Seq(
 )
 
 commands += Command.command("build") { state =>
-  "wordcount/package" ::
-    "sequential/assembly" ::
-    "coordinator/assembly" ::
-    "worker/assembly" ::
+
+  List(
+    "wordcount",
+    "map-parallel",
+    "reduce-parallel",
+
+    "coordinator",
+    "worker",
+
+    "sequential",
+  ).map(app => s"$app/assembly") :::
     state
 }
 
@@ -40,7 +47,7 @@ lazy val rpc = project.in(file("rpc")).settings(
 
 def apps(name: String): Project =
   Project(name, file(s"apps/$name"))
-    .settings(Compile / Keys.`packageBin` / artifactPath := file(s"apps/$name.jar"))
+    .settings(assembly / assemblyOutputPath := file(s"apps/$name.jar"))
     .dependsOn(api)
 
 lazy val wordcount = apps("wordcount")

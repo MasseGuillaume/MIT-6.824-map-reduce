@@ -1,14 +1,14 @@
 
-class ReduceParallelApp extends ParallelApp {
+class ReduceParallel extends Parallel {
   def map(key: String, value: String)(emit: (String, String) => Unit): Unit = {
     ('a' to 'j').foreach(k =>
-      emit(k, "1")
+      emit(k.toString, "1")
     )
   }
 
   def reduce(key: String, values: Seq[String])(emit: String => Unit): Unit = {
-    val n = ParallelApp.countConcurrentJobs("reduce")
+    val n = Parallel.countConcurrentJobs("reduce")
     println("ReduceParallelApp n=" + n)
-    emit(n)
+    emit(n.toString)
   }
 }

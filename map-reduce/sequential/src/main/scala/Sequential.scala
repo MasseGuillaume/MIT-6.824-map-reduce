@@ -3,10 +3,11 @@ import java.io.PrintWriter
 
 object Main {
   def main(args: Array[String]): Unit = {
-    val app = FindMapReduceApp(Paths.get(args.head))
+    val List(appJarPath, className) = args.take(2).toList
+    val app = FindMapReduceApp(Paths.get(appJarPath), className)
     val intermediate = Array.newBuilder[(app.IntermediateKey, app.IntermediateValue)]
 
-    for (filename <- args.tail) {
+    for (filename <- args.drop(2)) {
       val content = Files.readString(Paths.get(filename))
       val value = app.readerInput.read(content)
       app.map(filename, value){ (k, v) => 
