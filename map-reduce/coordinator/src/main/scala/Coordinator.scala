@@ -53,10 +53,12 @@ class Coordinator(workers: List[WorkerClient], inputs: List[String])(implicit
       _ = assert(attributedPartitions == attributedClients)
 
       reduceResult <- Future.sequence(
-        partitions.map(_._2).zip(workers).map { case (files, client) =>
-          client.reduce(ReduceRequest(files))
+        partitions.map(_._2).zip(workers).map { case (files, worker) =>
+          worker.reduce(ReduceRequest(files))
         }
       )
+
+      _ <- Future.sequence(workers.map(_.bye(new Empty)))
     } yield {
       // reduceResult.flatMap(_.outputFile.toList).foreach(r => println(r.filename))
       Done

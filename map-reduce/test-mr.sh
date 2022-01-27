@@ -9,20 +9,21 @@ failed_any=0
  
 printf "\u001bc"
 
+#########################################################
+echo '***' Starting word count test.
+
 # Word Count
 ../mrsequential ../apps/wordcount.jar WordCount ../data/pg*txt || exit 1
 sort mr-out-0 > mr-correct-wc.txt
 rm -f mr-out*
-
-echo '***' Starting wc test.
 
 # start multiple workers.
 timeout -k 2s 180s ../mrworker ../apps/wordcount.jar WordCount 0 3 &
 timeout -k 2s 180s ../mrworker ../apps/wordcount.jar WordCount 1 3 &
 timeout -k 2s 180s ../mrworker ../apps/wordcount.jar WordCount 2 3 &
 
-echo '-- wait 10s for workers to start --'
-sleep 10
+echo '-- wait 2s for workers to start --'
+sleep 2
 
 timeout -k 2s 180s ../mrcoordinator 3 ../data/pg*txt &
 pid=$!
@@ -52,8 +53,8 @@ rm -f mr-*
 timeout -k 2s 180s ../mrworker ../apps/map-parallel.jar MapParallel 0 2 &
 timeout -k 2s 180s ../mrworker ../apps/map-parallel.jar MapParallel 1 2 &
 
-echo '-- wait 10s for workers to start --'
-sleep 10
+echo '-- wait 2s for workers to start --'
+sleep 2
 
 timeout -k 2s 180s ../mrcoordinator 2 ../data/pg*txt # << block
 
@@ -76,31 +77,31 @@ fi
 
 wait # for workers to exit
 
-# #########################################################
-# echo '***' Starting reduce parallelism test.
+#########################################################
+echo '***' Starting reduce parallelism test.
 
-# rm -f mr-*
+rm -f mr-*
 
-# timeout -k 2s 180s ../mrworker ../apps/reduce-parallel.jar ReduceParallel 0 2 &
-# timeout -k 2s 180s ../mrworker ../apps/reduce-parallel.jar ReduceParallel 1 2 &
+timeout -k 2s 180s ../mrworker ../apps/reduce-parallel.jar ReduceParallel 0 2 &
+timeout -k 2s 180s ../mrworker ../apps/reduce-parallel.jar ReduceParallel 1 2 &
 
-# echo '-- wait 10s for workers to start --'
-# sleep 10
+echo '-- wait 2s for workers to start --'
+sleep 2
 
-# timeout -k 2s 180s ../mrcoordinator 2 ../data/pg*txt # << block
+timeout -k 2s 180s ../mrcoordinator 2 ../data/pg*txt # << block
 
-# NT=`cat mr-out* | grep '^[a-z] 2' | wc -l | sed 's/ //g'`
-# if [ "$NT" -lt "2" ]
-# then
-#   echo '---' too few parallel reduces.
-#   echo '---' reduce parallelism test: FAIL
-#   failed_any=1
-# else
-#   echo '---' reduce parallelism test: PASS
-# fi
+NT=`cat mr-out* | grep '^[a-z] 2' | wc -l | sed 's/ //g'`
+if [ "$NT" -lt "2" ]
+then
+  echo '---' too few parallel reduces.
+  echo '---' reduce parallelism test: FAIL
+  failed_any=1
+else
+  echo '---' reduce parallelism test: PASS
+fi
 
-# wait
+wait
 
-# # kill possible remaining processes
+# kill possible remaining processes
 # kill $(jps | grep worker | awk '{print $1}')
 # kill $(jps | grep coordinator | awk '{print $1}')

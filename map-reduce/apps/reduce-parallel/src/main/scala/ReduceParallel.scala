@@ -8,6 +8,6 @@ class ReduceParallel extends Parallel {
 
   def reduce(key: String, values: Seq[String])(emit: String => Unit): Unit = {
     val n = Parallel.countConcurrentJobs("reduce")
-    emit(n.toString)
+    emit(key + " " + n.toString)
   }
 }

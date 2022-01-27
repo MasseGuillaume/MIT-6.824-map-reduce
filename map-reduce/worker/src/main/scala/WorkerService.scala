@@ -84,17 +84,17 @@ class WorkerServiceImpl(app: MapReduceApp, reducerCount: Int, index: Int)(
     }
   }
 
-  def mapDone(in: Empty): Future[MapResponse] = {
-    Future{
+  def mapDone(in: Empty): Future[MapResponse] =
+    Future.successful(MapResponse(storeIntermediate()))
+
+  def bye(in: Empty): Future[Empty] =
+    Future {
       import scala.concurrent.duration._
-
       after(5.seconds, system.scheduler) {
-        sys.exit(0)
+        system.terminate()
       }
-
-      MapResponse(storeIntermediate())
+      new Empty
     }
-  }
 
   def readIntermediateFile(
       in: IntermediateFile
@@ -106,10 +106,10 @@ class WorkerServiceImpl(app: MapReduceApp, reducerCount: Int, index: Int)(
     }
   }
 
-  private val clientCache = new ConcurrentHashMap[Int, WorkerClient]
-  private def getClient(clientPort: Int): WorkerClient = {
-    clientCache.computeIfAbsent(
-      clientPort,
+  private val workerCache = new ConcurrentHashMap[Int, WorkerClient]
+  private def getWorker(workerPort: Int): WorkerClient = {
+    workerCache.computeIfAbsent(
+      workerPort,
       p =>
         WorkerClient(
           GrpcClientSettings
@@ -120,12 +120,12 @@ class WorkerServiceImpl(app: MapReduceApp, reducerCount: Int, index: Int)(
   }
 
   def reduce(request: ReduceRequest): Future[ReduceResponse] = {
-    println(s"[REDUCE] worker: $index got ${request}")
+    // println(s"[REDUCE] worker: $index got ${request}")
 
     Future
       .sequence(
         request.intputFiles.map(file =>
-          if (file.port != port) getClient(file.port).readIntermediateFile(file)
+          if (file.port != port) getWorker(file.port).readIntermediateFile(file)
           else readIntermediateFile(file)
         )
       )
@@ -144,9 +144,10 @@ class WorkerServiceImpl(app: MapReduceApp, reducerCount: Int, index: Int)(
             .mapValues(_.map(_._2))
 
         for ((key, values) <- byKey) {
-          app.reduce(key, values)(v =>
+          app.reduce(key, values){v =>
+            println(s"[REDUCE] worker: $index write: $v")
             writer.println(app.writerOutput.write(v))
-          )
+          }
         }
 
         writer.close()
