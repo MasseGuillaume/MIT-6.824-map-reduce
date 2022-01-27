@@ -65,7 +65,7 @@ class WorkerServiceImpl(app: MapReduceApp, reducerCount: Int, index: Int)(
   def map(request: MapRequest): Future[MapResponse] = {
     Future {
       request.inputFile.foreach { file =>
-        println(s"[MAP] worker: $index got ${file.filename}")
+        // println(s"[MAP] worker: $index got ${file.filename}")
 
         val content = Files.readString(Paths.get(file.filename))
         val value = app.readerInput.read(content)
@@ -145,7 +145,7 @@ class WorkerServiceImpl(app: MapReduceApp, reducerCount: Int, index: Int)(
 
         for ((key, values) <- byKey) {
           app.reduce(key, values){v =>
-            println(s"[REDUCE] worker: $index write: $v")
+            // println(s"[REDUCE] worker: $index write: $v")
             writer.println(app.writerOutput.write(v))
           }
         }

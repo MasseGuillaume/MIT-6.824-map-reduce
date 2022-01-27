@@ -7,11 +7,14 @@ ThisBuild / scalacOptions := Seq(
 
 commands += Command.command("buildAll") { state =>
   List(
-    "wordcount",
+    "indexer",
     "map-parallel",
     "reduce-parallel",
+    "wordcount",
+
     "coordinator",
     "worker",
+
     "sequential",
   ).map(app => s"$app/assembly") :::
     state
@@ -83,6 +86,7 @@ def apps(name: String): Project =
     .dependsOn(api)
 
 lazy val wordcount = apps("wordcount")
+lazy val indexer = apps("indexer")
 lazy val parallel = project.in(file("apps/parallel")).dependsOn(api)
 lazy val mapParallel = apps("map-parallel").dependsOn(parallel)
 lazy val reduceParallel = apps("reduce-parallel").dependsOn(parallel)
