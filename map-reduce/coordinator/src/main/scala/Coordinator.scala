@@ -7,26 +7,26 @@ import akka.Done
 import scala.concurrent.{Future, ExecutionContext}
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
+import akka.NotUsed
+
+import com.google.protobuf.empty.Empty
 
 object Coordinator {
   def main(args: Array[String]): Unit = {
+    val workerCount = args.head.toInt
+    val inputs = args.tail.toList
 
     implicit val system = ActorSystem()
-    implicit val ec = system.dispatcher
 
-    val clients = {
-      val workerCount = args.head.toInt
-      
-      (0 until workerCount).toList.map(index =>
+    val workers = 
+      (0 until workerCount).toList.map(index => 
         WorkerClient(
           GrpcClientSettings
             .connectToServiceAt("127.0.0.1", WorkerUtils.portFromIndex(index))
             .withTls(false)
         )
       )
-    }
-    val inputs = args.tail.toList
-    val coordinator = new Coordinator(clients, inputs)
+    val coordinator = new Coordinator(workers, inputs)
 
     Await.result(coordinator.run(), Duration.Inf)
 
@@ -34,38 +34,63 @@ object Coordinator {
   }
 }
 
-class Coordinator(clients: List[WorkerClient], inputs: List[String])(implicit
-    ec: ExecutionContext
+class Coordinator(workers: List[WorkerClient], inputs: List[String])(implicit
+    system: ActorSystem
 ) {
-  def run(): Future[Done] = {
-    val empty = new com.google.protobuf.empty.Empty
+  import system.dispatcher
 
+  def run(): Future[Done] = {
     for {
-      mapResponses <-
-        Future.sequence(
-          inputs.zip(LazyList.continually(clients).flatten).map {
-            case (input, client) =>
-              client.map(MapRequest(List(DistributedFile(input))))
-          }
-        )
-      mapDoneResponses <- Future.sequence(clients.map(_.mapDone(empty)))
+      mapResponses <- coordinateMap()
+      mapDoneResponses <- Future.sequence(workers.map(_.mapDone(new Empty)))
       responses = (mapResponses ++ mapDoneResponses).flatMap(_.results)
 
       partitions = responses.groupBy(_.partition).toList.sortBy(_._1)
 
       // make sure we got all the partitions covered
       attributedPartitions = partitions.map(_._1).toSet
-      attributedClients = (0 until clients.size).toSet
+      attributedClients = (0 until workers.size).toSet
       _ = assert(attributedPartitions == attributedClients)
 
       reduceResult <- Future.sequence(
-        partitions.map(_._2).zip(clients).map { case (files, client) =>
+        partitions.map(_._2).zip(workers).map { case (files, client) =>
           client.reduce(ReduceRequest(files))
         }
       )
     } yield {
-      reduceResult.flatMap(_.outputFiles).foreach(r => println(r.filename))
+      // reduceResult.flatMap(_.outputFile.toList).foreach(r => println(r.filename))
       Done
     }
+  }
+
+
+  def coordinateMap(): Future[List[MapResponse]] = {
+    val workerCount = workers.size
+    val workersArray = workers.toArray
+
+    import akka.stream.scaladsl._
+    import akka.stream.{FlowShape, Attributes}
+    
+    def worker(index: Int): Flow[MapRequest, MapResponse, NotUsed] = 
+      Flow[MapRequest].mapAsync(1)(workersArray(index).map)
+
+    val balanceWorkers: Flow[MapRequest, MapResponse, NotUsed] =
+      Flow.fromGraph(GraphDSL.create() { implicit b =>
+        import GraphDSL.Implicits._
+
+        val balance = b.add(Balance[MapRequest](workerCount))
+        val merge = b.add(Merge[MapResponse](workerCount))
+
+        for (i <- 0 until workerCount)
+          balance.out(i) ~> worker(i) ~> merge.in(i)
+
+        FlowShape(balance.in, merge.out)
+      })
+
+
+    Source(inputs.map(input => MapRequest(Some(DistributedFile(input)))))
+      .via(balanceWorkers)
+      .runWith(Sink.seq)
+      .map(_.toList)
   }
 }

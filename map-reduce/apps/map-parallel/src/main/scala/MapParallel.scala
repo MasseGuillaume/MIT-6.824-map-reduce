@@ -9,5 +9,5 @@ class MapParallel extends Parallel {
   }
 
   def reduce(key: String, values: Seq[String])(emit: String => Unit): Unit =
-    emit(values.sorted.mkString(" "))
+    emit(key + " " + values.sorted.mkString(" "))
 }

@@ -1,4 +1,4 @@
 ```bash
-sbt build
+sbt buildAll
 ./test-mr.sh
 ```

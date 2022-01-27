@@ -47,7 +47,7 @@ class WorkerServiceImpl(app: MapReduceApp, reducerCount: Int, index: Int)(
           .map { case (partition, kvs) =>
             val id = java.util.UUID.randomUUID
             val content = kvs.map(app.writerIntermediate.write).mkString("\n")
-            val path = base.resolve(s"$id-$partition")
+            val path = base.resolve(s"$id-worker-$index-partition-$partition")
             Files.write(path, content.getBytes())
             IntermediateFile(
               partition = partition,
@@ -64,7 +64,9 @@ class WorkerServiceImpl(app: MapReduceApp, reducerCount: Int, index: Int)(
 
   def map(request: MapRequest): Future[MapResponse] = {
     Future {
-      request.inputFiles.foreach { file =>
+      request.inputFile.foreach { file =>
+        println(s"[MAP] worker: $index got ${file.filename}")
+
         val content = Files.readString(Paths.get(file.filename))
         val value = app.readerInput.read(content)
         app.map(file.filename, value)((k, v) => {
@@ -118,6 +120,8 @@ class WorkerServiceImpl(app: MapReduceApp, reducerCount: Int, index: Int)(
   }
 
   def reduce(request: ReduceRequest): Future[ReduceResponse] = {
+    println(s"[REDUCE] worker: $index got ${request}")
+
     Future
       .sequence(
         request.intputFiles.map(file =>
@@ -126,6 +130,7 @@ class WorkerServiceImpl(app: MapReduceApp, reducerCount: Int, index: Int)(
         )
       )
       .map { contents =>
+
 
         val filename = s"mr-out-$index"
         val writer = new PrintWriter(filename, "UTF-8")

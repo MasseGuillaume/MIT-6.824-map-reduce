@@ -22,7 +22,7 @@ message DistributedFile {
 }
 
 message MapRequest {
-  repeated DistributedFile inputFiles = 1;
+  DistributedFile inputFile = 1;
 }
 
 message MapResponse {
@@ -44,5 +44,5 @@ message ReduceRequest {
 }
 
 message ReduceResponse {
-  DistributedFile outputFiles = 1;
+  DistributedFile outputFile = 1;
 }

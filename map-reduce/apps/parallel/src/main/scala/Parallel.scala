@@ -9,7 +9,6 @@ object Parallel {
     // we're running at the same time as them.
     val pid = ProcessHandle.current().pid()
     val pidFile = Paths.get(s"$prefix$pid")
-    println(pidFile.toAbsolutePath)
     Files.write(pidFile, "x".getBytes())
 
     // are any other workers running?
