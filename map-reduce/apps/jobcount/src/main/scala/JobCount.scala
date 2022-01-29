@@ -24,10 +24,9 @@ class JobCount extends MapReduceApp {
     emit("a", "x")
   }
 
-  def reduce(key: String, values: Seq[String])(
-      emit: String => Unit
-  ): Unit = {
-    val invocations = new File(".").listFiles().count(_.getName.startsWith(prefix))
+  def reduce(key: String, values: Seq[String])(emit: String => Unit): Unit = {
+    val invocations =
+      new File(".").listFiles().count(_.getName.startsWith(prefix))
     emit(invocations.toString)
   }
 }

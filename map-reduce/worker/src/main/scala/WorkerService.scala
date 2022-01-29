@@ -5,6 +5,7 @@ import akka.actor.ActorSystem
 import akka.stream.Materializer
 import akka.pattern.after
 import scala.concurrent.Future
+import scala.concurrent.duration._
 import akka.NotUsed
 
 import java.nio.file._
@@ -20,6 +21,8 @@ class WorkerServiceImpl(app: MapReduceApp, reducerCount: Int, index: Int)(
     mat: Materializer
 ) extends Worker {
   import mat.executionContext
+
+  implicit val scheduler: akka.actor.Scheduler = system.scheduler
 
   val port = WorkerUtils.portFromIndex(index)
 
@@ -45,7 +48,7 @@ class WorkerServiceImpl(app: MapReduceApp, reducerCount: Int, index: Int)(
           .toList
           .map { case (partition, kvs) =>
             val id = java.util.UUID.randomUUID
-            val content = kvs.map{ case (k, v) => s"$k $v"}.mkString("\n")
+            val content = kvs.map { case (k, v) => s"$k $v" }.mkString("\n")
             val path = base.resolve(s"$id-worker-$index-partition-$partition")
             Files.write(path, content.getBytes())
             IntermediateFile(
@@ -67,12 +70,18 @@ class WorkerServiceImpl(app: MapReduceApp, reducerCount: Int, index: Int)(
         // println(s"[MAP] worker: $index got ${file.filename}")
 
         val content = Files.readString(Paths.get(file.filename))
-        app.map(file.filename, content)((k, v) => {
-          buffer.synchronized {
-            bufferSize += 1
-            buffer += k -> v
-          }
-        })
+        try {
+          app.map(file.filename, content)((k, v) => {
+            buffer.synchronized {
+              bufferSize += 1
+              buffer += k -> v
+            }
+          })
+        } catch {
+          case e: Exception if e.getMessage() == "Boom" =>
+            println(s"crash in map, worker: $index")
+            sys.exit(1)
+        }
       }
       if (bufferSize < maxBufferSize) {
         MapResponse(Nil)
@@ -123,12 +132,18 @@ class WorkerServiceImpl(app: MapReduceApp, reducerCount: Int, index: Int)(
     Future
       .sequence(
         request.intputFiles.map(file =>
-          if (file.port != port) getWorker(file.port).readIntermediateFile(file)
-          else readIntermediateFile(file)
+          if (file.port != port) {
+            val worker = getWorker(file.port)
+
+            akka.pattern.retry(
+              () => worker.readIntermediateFile(file),
+              attempts = 10,
+              100.millis
+            )
+          } else readIntermediateFile(file)
         )
       )
       .map { contents =>
-
 
         val filename = s"mr-out-$index"
         val writer = new PrintWriter(filename, "UTF-8")
@@ -136,7 +151,7 @@ class WorkerServiceImpl(app: MapReduceApp, reducerCount: Int, index: Int)(
         val byKey =
           contents
             .flatMap(_.content.split("\n"))
-            .map{ line =>
+            .map { line =>
               val Array(key, value) = line.split(" ")
               (key, value)
             }
@@ -145,9 +160,15 @@ class WorkerServiceImpl(app: MapReduceApp, reducerCount: Int, index: Int)(
             .mapValues(_.map(_._2))
 
         for ((key, values) <- byKey) {
-          app.reduce(key, values){v =>
-            // println(s"[REDUCE] worker: $index write: $v")
-            writer.println(s"$key $v")
+          try {
+            app.reduce(key, values) { v =>
+              // println(s"[REDUCE] worker: $index write: $v")
+              writer.println(s"$key $v")
+            }
+          } catch {
+            case e: Exception if e.getMessage() == "Boom" =>
+              println(s"crash in reduce, worker: $index")
+              sys.exit(1)
           }
         }
 

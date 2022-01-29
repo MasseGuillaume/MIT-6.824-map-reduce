@@ -1,4 +1,4 @@
-class EarlyExit extends MapReduceApp {
+class EarlyExit0 extends MapReduceApp {
 
   def map(key: String, value: String)(emit: (String, String) => Unit): Unit = {
     emit(key, "1")

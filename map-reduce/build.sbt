@@ -2,7 +2,7 @@ ThisBuild / scalaVersion := "2.13.7"
 ThisBuild / scalacOptions := Seq(
   "-feature",
   "-unchecked",
-  "-deprecation",
+  "-deprecation"
 )
 
 commands += Command.command("buildAll") { state =>
@@ -13,11 +13,11 @@ commands += Command.command("buildAll") { state =>
     "reduce-parallel",
     "jobcount",
     "early-exit",
-
+    "crash",
+    "no-crash",
     "coordinator",
     "worker",
-
-    "sequential",
+    "sequential"
   ).map(app => s"$app/assembly") :::
     state
 }
@@ -25,29 +25,47 @@ commands += Command.command("buildAll") { state =>
 commands += Command.command("build") { state =>
   List(
     "coordinator",
-    "worker",
+    "worker"
   ).map(app => s"$app/assembly") :::
     state
 }
 
 // duplicated proto files between protobuf-java and akka-protobuf
 ThisBuild / assemblyMergeStrategy := {
-  case PathList("google", "protobuf", _ *) => MergeStrategy.first
+  case PathList("google", "protobuf", _*) => MergeStrategy.first
   case x =>
     val oldStrategy = (ThisBuild / assemblyMergeStrategy).value
     oldStrategy(x)
 }
 
-lazy val root = 
+lazy val root =
   project
     .in(file("."))
-    .dependsOn(coordinator, worker, api, rpc, sequential, wordcount, mapParallel, reduceParallel)
-    .aggregate(coordinator, worker, api, rpc, sequential, wordcount, mapParallel, reduceParallel)
+    .dependsOn(
+      coordinator,
+      worker,
+      api,
+      rpc,
+      sequential,
+      wordcount,
+      mapParallel,
+      reduceParallel
+    )
+    .aggregate(
+      coordinator,
+      worker,
+      api,
+      rpc,
+      sequential,
+      wordcount,
+      mapParallel,
+      reduceParallel
+    )
 
-lazy val api = 
+lazy val api =
   project
 
-lazy val coordinator = 
+lazy val coordinator =
   project
     .settings(assemblySettings)
     .settings(
@@ -55,12 +73,12 @@ lazy val coordinator =
     )
     .dependsOn(rpc, api)
 
-lazy val worker = 
+lazy val worker =
   project
     .settings(assemblySettings)
     .dependsOn(rpc, api)
 
-lazy val sequential  = 
+lazy val sequential =
   project
     .settings(assemblySettings)
     .dependsOn(api)
@@ -68,19 +86,17 @@ lazy val sequential  =
 val protocPath =
   file("/nix/store/vbm3w8wz4ly35clcr0b7hncnz13cw8r4-protobuf-3.16.0/bin/protoc")
 
-
-lazy val rpc = 
+lazy val rpc =
   project
     .settings(
       PB.protocExecutable := protocPath
     )
     .enablePlugins(AkkaGrpcPlugin)
 
-def assemblySettings: Seq[sbt.Def.Setting[_]] = 
+def assemblySettings: Seq[sbt.Def.Setting[_]] =
   Seq(
     assembly / assemblyOutputPath := file(s"apps/${name.value}.jar")
   )
-
 
 def apps(name: String): Project =
   Project(name, file(s"apps/$name"))
@@ -94,3 +110,5 @@ lazy val mapParallel = apps("map-parallel").dependsOn(parallel)
 lazy val reduceParallel = apps("reduce-parallel").dependsOn(parallel)
 lazy val jobcount = apps("jobcount")
 lazy val earlyExit = apps("early-exit")
+lazy val crash = apps("crash")
+lazy val noCrash = apps("no-crash")
