@@ -13,9 +13,9 @@ object WorkerServer {
     args.toList match {
       case List(appJarPath, className, indexRaw, reducerCountRaw) =>
         val app = FindMapReduceApp(Paths.get(args.head), className)
-        val system = ActorSystem("HelloWorld")
+        val system = ActorSystem()
         new WorkerServer(indexRaw.toInt, reducerCountRaw.toInt, system).run(app)
-      case _ => 
+      case _ =>
         sys.error("expected: appJarPath port reducerCount")
         sys.exit(1)
     }

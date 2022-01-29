@@ -2,49 +2,20 @@ syntax = "proto3";
 
 package grpc;
 
-
 option java_multiple_files = true;
 option java_package = "grpc";
 
-import "google/protobuf/empty.proto";
-
+// import "google/protobuf/empty.proto";
+// google.protobuf.Empty
 
 service Worker {
-  rpc Map (MapRequest) returns (MapResponse);
-  rpc MapDone (google.protobuf.Empty) returns (MapResponse);
-
-  rpc ReadIntermediateFile (IntermediateFile) returns (IntermediateFileContent);
-  rpc Reduce (ReduceRequest) returns (ReduceResponse);
-
-  rpc Bye (google.protobuf.Empty) returns (google.protobuf.Empty);
+  rpc CallExample (ExampleArgs) returns (ExampleReply);
 }
 
-message DistributedFile {
-  string filename = 1;
+message ExampleArgs {
+  int32 X = 1;
 }
 
-message MapRequest {
-  DistributedFile inputFile = 1;
-}
-
-message MapResponse {
-  repeated IntermediateFile results = 1;
-}
-
-message IntermediateFile {
-  int32 partition = 1;
-  string filename = 2;
-  int32 port = 3;
-}
-
-message IntermediateFileContent {
-  string content = 1;
-}
-
-message ReduceRequest {
-  repeated IntermediateFile intputFiles = 1;
-}
-
-message ReduceResponse {
-  DistributedFile outputFile = 1;
+message ExampleReply {
+  int32 Y = 1;
 }
