@@ -1,5 +1,5 @@
 
-class MapParallel extends Parallel {
+class MapParallel extends ClassicMapReduceApp {
   def map(key: String, value: String)(emit: (String, String) => Unit): Unit = {
     val ts = System.nanoTime
     val pid = ProcessHandle.current().pid()

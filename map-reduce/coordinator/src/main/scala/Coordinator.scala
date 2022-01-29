@@ -30,7 +30,7 @@ object Coordinator {
 
     Await.result(coordinator.run(), Duration.Inf)
 
-    sys.exit(0)
+    system.terminate()
   }
 }
 
@@ -44,14 +44,7 @@ class Coordinator(workers: List[WorkerClient], inputs: List[String])(implicit
       mapResponses <- coordinateMap()
       mapDoneResponses <- Future.sequence(workers.map(_.mapDone(new Empty)))
       responses = (mapResponses ++ mapDoneResponses).flatMap(_.results)
-
       partitions = responses.groupBy(_.partition).toList.sortBy(_._1)
-
-      // make sure we got all the partitions covered
-      attributedPartitions = partitions.map(_._1).toSet
-      attributedClients = (0 until workers.size).toSet
-      _ = assert(attributedPartitions == attributedClients)
-
       reduceResult <- Future.sequence(
         partitions.map(_._2).zip(workers).map { case (files, worker) =>
           worker.reduce(ReduceRequest(files))

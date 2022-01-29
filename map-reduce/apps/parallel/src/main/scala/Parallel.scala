@@ -41,26 +41,3 @@ object Parallel {
     runningProcesses
   }
 }
-
-trait Parallel extends MapReduceApp {
-  type InputValue = String
-
-  type IntermediateKey = String
-  type IntermediateValue = String
-
-  type OutputKey = String
-  type OutputValue = String
-
-  val ordering: Ordering[String] = implicitly[Ordering[String]]
-
-  val readerInput: Reader[String] = content => content
-  val writerIntermediate: Writer[(String, String)] = { case (key, value) =>
-    s"$key $value"
-  }
-  val writerKey: Writer[String] = key => key
-  val readerIntermediate: Reader[(String, String)] = content => {
-    val List(key, value) = content.split(' ').toList
-    (key, value)
-  }
-  val writerOutput: Writer[String] = value => value
-}

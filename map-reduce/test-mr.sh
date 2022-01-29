@@ -57,39 +57,39 @@ printf "\u001bc"
 
 
 
-#########################################################
-echo '***' Starting indexer.
+# #########################################################
+# echo '***' Starting indexer.
 
-# Indexer
-../mrsequential ../apps/indexer.jar Indexer ../data/pg*txt || exit 1
-sort mr-out-0 > mr-correct-indexer.txt
-rm -f mr-out*
+# # Indexer
+# ../mrsequential ../apps/indexer.jar Indexer ../data/pg*txt || exit 1
+# sort mr-out-0 > mr-correct-indexer.txt
+# rm -f mr-out*
 
-# start multiple workers.
-timeout -k 2s 180s ../mrworker ../apps/indexer.jar Indexer 0 2 &
-timeout -k 2s 180s ../mrworker ../apps/indexer.jar Indexer 1 2 &
+# # start multiple workers.
+# timeout -k 2s 180s ../mrworker ../apps/indexer.jar Indexer 0 2 &
+# timeout -k 2s 180s ../mrworker ../apps/indexer.jar Indexer 1 2 &
 
-echo '-- wait 2s for workers to start --'
-sleep 2
+# echo '-- wait 2s for workers to start --'
+# sleep 2
 
-timeout -k 2s 180s ../mrcoordinator 2 ../data/pg*txt &
-pid=$!
+# timeout -k 2s 180s ../mrcoordinator 2 ../data/pg*txt &
+# pid=$!
 
-# wait for the coordinator to exit.
-wait $pid
+# # wait for the coordinator to exit.
+# wait $pid
 
-sort mr-out* | grep . > mr-indexer-all
-if cmp mr-indexer-all mr-correct-indexer.txt
-then
-  echo '---' indexer test: PASS
-else
-  echo '---' indexer output is not the same as mr-correct-indexer.txt
-  echo '---' indexer test: FAIL
-  failed_any=1
-fi
+# sort mr-out* | grep . > mr-indexer-all
+# if cmp mr-indexer-all mr-correct-indexer.txt
+# then
+#   echo '---' indexer test: PASS
+# else
+#   echo '---' indexer output is not the same as mr-correct-indexer.txt
+#   echo '---' indexer test: FAIL
+#   failed_any=1
+# fi
 
 
-wait # for workers and coordinator to exit 
+# wait # for workers and coordinator to exit 
 
 
 
@@ -162,6 +162,46 @@ wait # for workers and coordinator to exit
 
 # wait
 
+
+
+# Gui: This test does not really make sense
+# #########################################################
+# echo '***' Starting job count test.
+
+# rm -f mr-*
+
+# timeout -k 2s 180s ../mrworker ../apps/jobcount.jar JobCount 0 2 &
+# timeout -k 2s 180s ../mrworker ../apps/jobcount.jar JobCount 1 2 &
+
+
+# echo '-- wait 2s for workers to start --'
+# sleep 2
+
+# timeout -k 2s 180s ../mrcoordinator 2 ../data/pg*txt # << block
+
+# NT=`cat mr-out* | awk '{print $2}'`
+# if [ "$NT" -ne "8" ]
+# then
+#   echo '---' map jobs ran incorrect number of times "($NT != 8)"
+#   echo '---' job count test: FAIL
+#   failed_any=1
+# else
+#   echo '---' job count test: PASS
+# fi
+
+# wait
+
+
+
+
+
+
+
+
+
+
+
+
 # # kill possible remaining processes
-# # kill $(jps | grep worker | awk '{print $1}')
-# # kill $(jps | grep coordinator | awk '{print $1}')
+# kill $(jps | grep worker | awk '{print $1}')
+# kill $(jps | grep coordinator | awk '{print $1}')

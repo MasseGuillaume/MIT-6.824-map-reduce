@@ -1,5 +1,5 @@
 
-class ReduceParallel extends Parallel {
+class ReduceParallel extends ClassicMapReduceApp {
   def map(key: String, value: String)(emit: (String, String) => Unit): Unit = {
     ('a' to 'j').foreach(k =>
       emit(k.toString, "1")
