@@ -1,4 +1,4 @@
-class Indexer extends ClassicMapReduceApp {
+class Indexer extends MapReduceApp {
   def map(key: String, value: String)(emit: (String, String) => Unit): Unit = {
     for (word <- value.split("\\W+")) {
       emit(word, key)
@@ -10,6 +10,6 @@ class Indexer extends ClassicMapReduceApp {
   ): Unit = {
     val count = values.size
     val documents = values.sorted.mkString(",")
-    emit(s"$key $count $documents")
+    emit(s"$count $documents")
   }
 }

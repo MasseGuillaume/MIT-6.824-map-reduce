@@ -34,8 +34,7 @@ class WorkerServiceImpl(app: MapReduceApp, reducerCount: Int, index: Int)(
   }
 
   private var bufferSize = 0
-  private var buffer =
-    List.newBuilder[(app.IntermediateKey, app.IntermediateValue)]
+  private var buffer = List.newBuilder[(String, String)]
 
   private def storeIntermediate(): List[IntermediateFile] = {
     buffer.synchronized {
@@ -46,7 +45,7 @@ class WorkerServiceImpl(app: MapReduceApp, reducerCount: Int, index: Int)(
           .toList
           .map { case (partition, kvs) =>
             val id = java.util.UUID.randomUUID
-            val content = kvs.map(app.writerIntermediate.write).mkString("\n")
+            val content = kvs.map{ case (k, v) => s"$k $v"}.mkString("\n")
             val path = base.resolve(s"$id-worker-$index-partition-$partition")
             Files.write(path, content.getBytes())
             IntermediateFile(
@@ -56,7 +55,7 @@ class WorkerServiceImpl(app: MapReduceApp, reducerCount: Int, index: Int)(
             )
           }
       bufferSize = 0
-      buffer = List.newBuilder[(app.IntermediateKey, app.IntermediateValue)]
+      buffer = List.newBuilder[(String, String)]
 
       intermediate
     }
@@ -68,8 +67,7 @@ class WorkerServiceImpl(app: MapReduceApp, reducerCount: Int, index: Int)(
         // println(s"[MAP] worker: $index got ${file.filename}")
 
         val content = Files.readString(Paths.get(file.filename))
-        val value = app.readerInput.read(content)
-        app.map(file.filename, value)((k, v) => {
+        app.map(file.filename, content)((k, v) => {
           buffer.synchronized {
             bufferSize += 1
             buffer += k -> v
@@ -138,7 +136,10 @@ class WorkerServiceImpl(app: MapReduceApp, reducerCount: Int, index: Int)(
         val byKey =
           contents
             .flatMap(_.content.split("\n"))
-            .map(app.readerIntermediate.read)
+            .map{ line =>
+              val Array(key, value) = line.split(" ")
+              (key, value)
+            }
             .groupBy(_._1)
             .view
             .mapValues(_.map(_._2))
@@ -146,7 +147,7 @@ class WorkerServiceImpl(app: MapReduceApp, reducerCount: Int, index: Int)(
         for ((key, values) <- byKey) {
           app.reduce(key, values){v =>
             // println(s"[REDUCE] worker: $index write: $v")
-            writer.println(app.writerOutput.write(v))
+            writer.println(s"$key $v")
           }
         }
 

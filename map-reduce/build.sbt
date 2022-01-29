@@ -12,6 +12,7 @@ commands += Command.command("buildAll") { state =>
     "map-parallel",
     "reduce-parallel",
     "jobcount",
+    "early-exit",
 
     "coordinator",
     "worker",
@@ -92,3 +93,4 @@ lazy val parallel = project.in(file("apps/parallel")).dependsOn(api)
 lazy val mapParallel = apps("map-parallel").dependsOn(parallel)
 lazy val reduceParallel = apps("reduce-parallel").dependsOn(parallel)
 lazy val jobcount = apps("jobcount")
+lazy val earlyExit = apps("early-exit")

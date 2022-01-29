@@ -1,5 +1,5 @@
 
-class MapParallel extends ClassicMapReduceApp {
+class MapParallel extends MapReduceApp {
   def map(key: String, value: String)(emit: (String, String) => Unit): Unit = {
     val ts = System.nanoTime
     val pid = ProcessHandle.current().pid()
@@ -9,5 +9,5 @@ class MapParallel extends ClassicMapReduceApp {
   }
 
   def reduce(key: String, values: Seq[String])(emit: String => Unit): Unit =
-    emit(key + " " + values.sorted.mkString(" "))
+    emit(values.sorted.mkString(" "))
 }

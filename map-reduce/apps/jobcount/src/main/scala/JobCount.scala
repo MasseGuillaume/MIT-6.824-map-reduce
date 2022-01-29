@@ -11,7 +11,7 @@ object Count {
   var count = 0
 }
 
-class JobCount extends ClassicMapReduceApp {
+class JobCount extends MapReduceApp {
   import Count.count
 
   private val prefix = "mr-worker-jobcount"
@@ -28,6 +28,6 @@ class JobCount extends ClassicMapReduceApp {
       emit: String => Unit
   ): Unit = {
     val invocations = new File(".").listFiles().count(_.getName.startsWith(prefix))
-    emit(s"$key $invocations")
+    emit(invocations.toString)
   }
 }

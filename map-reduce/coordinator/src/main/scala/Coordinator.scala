@@ -18,8 +18,8 @@ object Coordinator {
 
     implicit val system = ActorSystem()
 
-    val workers = 
-      (0 until workerCount).toList.map(index => 
+    val workers =
+      (0 until workerCount).toList.map(index =>
         WorkerClient(
           GrpcClientSettings
             .connectToServiceAt("127.0.0.1", WorkerUtils.portFromIndex(index))
@@ -58,15 +58,14 @@ class Coordinator(workers: List[WorkerClient], inputs: List[String])(implicit
     }
   }
 
-
   def coordinateMap(): Future[List[MapResponse]] = {
     val workerCount = workers.size
     val workersArray = workers.toArray
 
     import akka.stream.scaladsl._
     import akka.stream.{FlowShape, Attributes}
-    
-    def worker(index: Int): Flow[MapRequest, MapResponse, NotUsed] = 
+
+    def worker(index: Int): Flow[MapRequest, MapResponse, NotUsed] =
       Flow[MapRequest].mapAsync(1)(workersArray(index).map)
 
     val balanceWorkers: Flow[MapRequest, MapResponse, NotUsed] =
@@ -81,7 +80,6 @@ class Coordinator(workers: List[WorkerClient], inputs: List[String])(implicit
 
         FlowShape(balance.in, merge.out)
       })
-
 
     Source(inputs.map(input => MapRequest(Some(DistributedFile(input)))))
       .via(balanceWorkers)
