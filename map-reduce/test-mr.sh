@@ -9,41 +9,45 @@ failed_any=0
  
 printf "\u001bc"
 
+export COORDINATOR_HOST=localhost
+export COORDINATOR_PORT=8000
+
 # #########################################################
 # echo '***' Starting word count test.
 
-# # Word Count
-# ../mrsequential ../apps/wordcount.jar WordCount ../data/pg*txt || exit 1
-# sort mr-out-0 > mr-correct-wc.txt
-# rm -f mr-out*
+# Word Count
+../mrsequential ../apps/wordcount.jar WordCount ../data/pg*txt || exit 1
+sort mr-out-0 > mr-correct-wc.txt
+rm -f mr-out*
 
-# # start multiple workers.
-# timeout -k 2s 180s ../mrworker ../apps/wordcount.jar WordCount 0 3 &
-# timeout -k 2s 180s ../mrworker ../apps/wordcount.jar WordCount 1 3 &
-# timeout -k 2s 180s ../mrworker ../apps/wordcount.jar WordCount 2 3 &
+timeout -k 2s 180s ../mrcoordinator ../data/pg*txt &
+pid=$!
 
-# echo '-- wait 2s for workers to start --'
-# sleep 2
+# give the coordinator time to create the tcp socket
+echo '-- wait 1s for the coordinator to start --'
+sleep 1
 
-# timeout -k 2s 180s ../mrcoordinator 3 ../data/pg*txt &
-# pid=$!
+# start multiple workers.
+timeout -k 2s 180s ../mrworker ../apps/wordcount.jar WordCount 0 &
+timeout -k 2s 180s ../mrworker ../apps/wordcount.jar WordCount 1 &
+timeout -k 2s 180s ../mrworker ../apps/wordcount.jar WordCount 2 &
 
-# # wait for the coordinator to exit.
-# wait $pid
+# wait for the coordinator to exit.
+wait $pid
 
-# # since workers are required to exit when a job is completely finished,
-# # and not before, that means the job has finished.
-# sort mr-out* | grep . > mr-wc-all
-# if cmp mr-wc-all mr-correct-wc.txt
-# then
-#   echo '---' wc test: PASS
-# else
-#   echo '---' wc output is not the same as mr-correct-wc.txt
-#   echo '---' wc test: FAIL
-#   failed_any=1
-# fi
+# since workers are required to exit when a job is completely finished,
+# and not before, that means the job has finished.
+sort mr-out* | grep . > mr-wc-all
+if cmp mr-wc-all mr-correct-wc.txt
+then
+  echo '---' wc test: PASS
+else
+  echo '---' wc output is not the same as mr-correct-wc.txt
+  echo '---' wc test: FAIL
+  failed_any=1
+fi
 
-# wait # for workers and coordinator to exit 
+wait # for workers and coordinator to exit 
 
 # #########################################################
 # echo '***' Starting indexer.
@@ -206,55 +210,55 @@ printf "\u001bc"
 # fi
 # rm -f mr-*
 
-#########################################################
-echo '***' Starting crash test.
+# #########################################################
+# echo '***' Starting crash test.
 
-# generate the correct output
-../mrsequential ../apps/no-crash.jar NoCrash ../data/pg*txt || exit 1
-sort mr-out-0 > mr-correct-crash.txt
-rm -f mr-out*
-rm -f mr-done
+# # generate the correct output
+# ../mrsequential ../apps/no-crash.jar NoCrash ../data/pg*txt || exit 1
+# sort mr-out-0 > mr-correct-crash.txt
+# rm -f mr-out*
+# rm -f mr-done
 
-# respawn workers until the job is done
-loop_workers () {
-  ( while [ ! -f mr-done ] 
-    do
-      echo "Restarting worker: $1"
-      timeout -k 2s 180s ../mrworker ../apps/crash.jar Crash "$1" 3
-      sleep 1
-    done
-  ) &
-}
+# # respawn workers until the job is done
+# loop_workers () {
+#   ( while [ ! -f mr-done ] 
+#     do
+#       echo "Restarting worker: $1"
+#       timeout -k 2s 180s ../mrworker ../apps/crash.jar Crash "$1" 3
+#       sleep 1
+#     done
+#   ) &
+# }
 
-# start multiple workers.
-loop_workers 0
-loop_workers 1
-loop_workers 2
+# # start multiple workers.
+# loop_workers 0
+# loop_workers 1
+# loop_workers 2
 
-echo '-- wait 2s for workers to start --'
-sleep 2
+# echo '-- wait 2s for workers to start --'
+# sleep 2
 
-(timeout -k 2s 180s ../mrcoordinator 3 ../data/pg*txt ; touch mr-done ) &
+# (timeout -k 2s 180s ../mrcoordinator 3 ../data/pg*txt ; touch mr-done ) &
 
-wait # for workers to finish
+# wait # for workers to finish
 
-sort mr-out* | grep . > mr-crash-all
-if cmp mr-crash-all mr-correct-crash.txt
-then
-  echo '---' crash test: PASS
-else
-  echo '---' crash output is not the same as mr-correct-crash.txt
-  echo '---' crash test: FAIL
-  failed_any=1
-fi
+# sort mr-out* | grep . > mr-crash-all
+# if cmp mr-crash-all mr-correct-crash.txt
+# then
+#   echo '---' crash test: PASS
+# else
+#   echo '---' crash output is not the same as mr-correct-crash.txt
+#   echo '---' crash test: FAIL
+#   failed_any=1
+# fi
 
-#########################################################
-if [ $failed_any -eq 0 ]; then
-    echo '***' PASSED ALL TESTS
-else
-    echo '***' FAILED SOME TESTS
-    exit 1
-fi
+# #########################################################
+# if [ $failed_any -eq 0 ]; then
+#     echo '***' PASSED ALL TESTS
+# else
+#     echo '***' FAILED SOME TESTS
+#     exit 1
+# fi
 
 
 # # # kill possible remaining processes

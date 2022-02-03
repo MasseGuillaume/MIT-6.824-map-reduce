@@ -1,158 +1,162 @@
 import grpc._
 
-import akka.grpc.GrpcClientSettings
-import akka.actor.ActorSystem
-import akka.Done
-
-import akka.stream.scaladsl._
-import akka.stream.{FlowShape, Attributes}
-
-import scala.concurrent.duration._
-import scala.concurrent.{Future, ExecutionContext}
-import scala.concurrent.Await
-
-import akka.NotUsed
+import java.nio.file.Paths
 
 import com.google.protobuf.empty.Empty
 
-object Coordinator {
+import akka.pattern.ask
+import akka.util.Timeout
+import akka.actor.{Actor, ActorSystem, Props}
+import akka.http.scaladsl.model.{HttpRequest, HttpResponse}
+import akka.http.scaladsl.Http
+
+import scala.concurrent.{ExecutionContext, Future, Await}
+import scala.concurrent.duration._
+
+object CoordinatorServer {
   def main(args: Array[String]): Unit = {
-    val workerCount = args.head.toInt
-    val inputs = args.tail.toList
+    if (args.nonEmpty) {
+      val host = sys.env("COORDINATOR_HOST")
+      val port = sys.env("COORDINATOR_PORT").toInt
 
-    implicit val system = ActorSystem()
-    import system.dispatcher
+      implicit val system = ActorSystem("Coordinator")
+      import system.dispatcher
 
-    val workers =
-      (0 until workerCount).toList.map(index =>
-        WorkerClient(
-          GrpcClientSettings
-            .connectToServiceAt("127.0.0.1", WorkerUtils.portFromIndex(index))
-            .withTls(false)
+      Http().newServerAt(host, port).bind(
+        CoordinatorHandler(
+          new CoordinatorImpl(
+            inputs = args.toList,
+            reducerCount = 10
+          )
         )
       )
-    val coordinator = new Coordinator(workers, inputs)
-
-    Await.result(
-      coordinator.run().recover { case e =>
-        println("crash in coordinator.run()")
-        e.printStackTrace()
-      },
-      Duration.Inf
-    )
-
-    system.terminate()
+      
+    } else {
+      sys.error("expected: distributed files ...")
+    }
   }
 }
 
-class Coordinator(workers: List[WorkerClient], inputs: List[String])(implicit
-    system: ActorSystem
-) {
-  import system.dispatcher
-  implicit val scheduler: akka.actor.Scheduler = system.scheduler
 
-  def run(): Future[Done] = {
-    for {
-      mapResponses <- coordinateMap()
-      _ = { println("*** coordinateMap Done ***") }
-      mapDoneResponses <- Future.sequence(
-        workers.map(
-          _.mapDone(new Empty).recover {
-            case ex: io.grpc.StatusRuntimeException =>
-              println("crash in map done")
-              throw ex
-          }
-        )
-      )
-      _ = { println("*** mapDoneResponses Done ***") }
-      responses = (mapResponses ++ mapDoneResponses).flatMap(_.results)
-      partitions = responses.groupBy(_.partition).toList.sortBy(_._1)
-      reduceResult <- Future.sequence(
-        partitions
-          .map(_._2)
-          .zip(workers)
-          .zipWithIndex
-          .map { case ((files, worker), index) =>
-            akka.pattern
-              .retry(
-                () => worker.reduce(ReduceRequest(files)),
-                attempts = 100,
-                100.millis
-              )
-              .recover { case ex: io.grpc.StatusRuntimeException =>
-                println(
-                  s"StatusRuntimeException not recovered for worker $index"
-                )
-                throw ex
-              }
 
-          }
-      )
-      _ = { println("*** reduce Done ***") }
-      _ <- Future.sequence(
-        workers.map(
-          _.bye(new Empty).recover { case ex: io.grpc.StatusRuntimeException =>
-            println("crash in bye")
-            throw ex
-          }
-        )
-      )
-      _ = { println("*** bye Done ***") }
-    } yield {
-      // reduceResult.flatMap(_.outputFile.toList).foreach(r => println(r.filename))
-      Done
-    }
+class CoordinatorImpl(inputs: List[String], reducerCount: Int)(implicit system: ActorSystem) extends Coordinator {
+  private val coordinatorActor = system.actorOf(CoordinatorActor.props(inputs, reducerCount))
+  private val empty = new Empty
+  
+  def requestTask(in: Empty): Future[TaskMessage] = {
+    implicit val timeout: Timeout = 3.seconds
+    import system.dispatcher
+
+    (coordinatorActor ? CoordinatorActor.TaskRequest).mapTo[TaskMessage]
   }
 
-  def coordinateMap(): Future[List[MapResponse]] = {
-    val workerCount = workers.size
-    val workersArray = workers.toArray
+  def mapDone(response: MapResponse): Future[Empty] = {
+    coordinatorActor ! response
+    Future.successful(empty)
+  }
+  def reduceDone(response: ReduceResponse): Future[Empty] = {
+    coordinatorActor ! response
+    Future.successful(empty)
+  }
+}
 
-    def retryWorker(index: Int): Flow[MapRequest, MapResponse, NotUsed] =
-      RetryFlow
-        .withBackoff(
-          minBackoff = 10.millis,
-          maxBackoff = 5.seconds,
-          randomFactor = 0,
-          maxRetries = 10,
-          worker(index)
-        )(
-          decideRetry = {
-            case (_, Right(response)) => None
-            case (request, Left(_))   => Some(request)
+
+object CoordinatorActor {
+  case object TaskRequest
+
+
+  def props(inputs: List[String], reducerCount: Int): Props = 
+    Props(new CoordinatorActor(inputs, reducerCount))
+}
+
+class CoordinatorActor(inputs: List[String], reducerCount: Int) extends Actor {
+
+  var isMapPhase = true
+
+  var mapUnassigned = inputs.map(input => MapTask(input, reducerCount, Some(DistributedFile(input))))
+  var mapInProgress = List.empty[MapTask]
+  var mapDone = List.empty[MapResponse]
+
+  var reduceUnassigned = List.empty[ReduceTask]
+  var reduceInProgress = List.empty[ReduceTask]
+  var reduceDone = List.empty[ReduceResponse]
+
+  var isJobDone = false
+
+  def receive = {
+    case CoordinatorActor.TaskRequest => {
+      if (!isJobDone) {
+        if (isMapPhase) {
+          mapUnassigned match {
+            case head :: tail =>
+              mapUnassigned = tail
+              sender() ! head.asMessage
+
+            case _ =>
+              // all maps are in progress, just wait
+              sender() ! NoopTask("").asMessage
           }
-        )
-        .collect {
-          case Right(value) => value
-          case Left(_)      => throw new Exception("not sure why")
+        } else {
+          reduceUnassigned match {
+            case head :: tail =>
+              reduceUnassigned = tail
+              sender() ! head.asMessage
+
+            case _ =>
+              sender() ! NoopTask("").asMessage
+          }
+        }
+      } else {
+        sender() ! ShutdownTask("").asMessage
+      }
+    }
+
+
+    case response: MapResponse => {
+      if (isMapPhase) {
+        val nextMapInProgress = mapInProgress.filter(_.id != response.id)
+        if (nextMapInProgress.size < mapInProgress.size) {
+          mapDone = response :: mapDone
+          mapInProgress = nextMapInProgress
+          if (mapUnassigned.isEmpty && mapInProgress.isEmpty) {
+            // switch to reduce phase
+            isMapPhase = false
+            reduceUnassigned = 
+              mapDone
+                .flatMap(_.results)
+                .groupBy(_.partition)
+                .toList
+                .sortBy(_._1)
+                .map { case (partition, intermediateFiles) =>
+                  ReduceTask(partition.toString, intermediateFiles)
+                }
+          }
+        } else {
+          println("weird map response was not in progress")
+        }
+      } else {
+        println("weird map response in reduce phase")
+      }
+    }
+
+    case response: ReduceResponse => {
+      if (!isMapPhase) {
+
+        val nextReduceInProgress = reduceInProgress.filter(_.id != response.id)
+        if (nextReduceInProgress.size < reduceInProgress.size) {
+          reduceDone = response :: reduceDone
+          reduceInProgress = nextReduceInProgress
+          if (reduceUnassigned.isEmpty && reduceInProgress.isEmpty) {
+            isJobDone = true
+          }
+        } else {
+          println("weird map response was not in progress")
         }
 
-    def worker(
-        index: Int
-    ): Flow[MapRequest, Either[Unit, MapResponse], NotUsed] =
-      Flow[MapRequest].mapAsync(1)(request =>
-        workersArray(index).map(request).map(Right(_)).recover {
-          case ex: io.grpc.StatusRuntimeException =>
-            Left(())
-        }
-      )
 
-    val balanceWorkers: Flow[MapRequest, MapResponse, NotUsed] =
-      Flow.fromGraph(GraphDSL.create() { implicit b =>
-        import GraphDSL.Implicits._
-
-        val balance = b.add(Balance[MapRequest](workerCount))
-        val merge = b.add(Merge[MapResponse](workerCount))
-
-        for (i <- 0 until workerCount)
-          balance.out(i) ~> retryWorker(i) ~> merge.in(i)
-
-        FlowShape(balance.in, merge.out)
-      })
-
-    Source(inputs.map(input => MapRequest(Some(DistributedFile(input)))))
-      .via(balanceWorkers)
-      .runWith(Sink.seq)
-      .map(_.toList)
+      } else {
+        println("weird reduce response in map phase")
+      }
+    }
   }
 }

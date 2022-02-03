@@ -5,5 +5,5 @@ trait MapReduceApp {
 }
 
 object WorkerUtils {
-  def portFromIndex(index: Int): Int = 8000 + index
+  def portFromIndex(index: Int): Int = 8001 + index
 }
