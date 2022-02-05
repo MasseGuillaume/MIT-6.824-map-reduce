@@ -30,20 +30,19 @@ object CoordinatorServer {
           )
         )
       )
-      
     } else {
       sys.error("expected: distributed files ...")
     }
   }
 }
 
-
-
 class CoordinatorImpl(inputs: List[String], reducerCount: Int)(implicit system: ActorSystem) extends Coordinator {
-  private val coordinatorActor = system.actorOf(CoordinatorActor.props(inputs, reducerCount))
+  private val coordinatorActor = system.actorOf(CoordinatorActor.props(inputs, reducerCount, system))
   private val empty = new Empty
   
   def requestTask(in: Empty): Future[TaskMessage] = {
+    println("Coordinator got requestTask")
+
     implicit val timeout: Timeout = 3.seconds
     import system.dispatcher
 
@@ -51,10 +50,14 @@ class CoordinatorImpl(inputs: List[String], reducerCount: Int)(implicit system: 
   }
 
   def mapDone(response: MapResponse): Future[Empty] = {
+    println(s"Coordinator got mapDone ${response.id}")
+
     coordinatorActor ! response
     Future.successful(empty)
   }
   def reduceDone(response: ReduceResponse): Future[Empty] = {
+    println(s"Coordinator got reduceDone ${response.id}")
+
     coordinatorActor ! response
     Future.successful(empty)
   }
@@ -64,16 +67,19 @@ class CoordinatorImpl(inputs: List[String], reducerCount: Int)(implicit system: 
 object CoordinatorActor {
   case object TaskRequest
 
-
-  def props(inputs: List[String], reducerCount: Int): Props = 
-    Props(new CoordinatorActor(inputs, reducerCount))
+  def props(inputs: List[String], reducerCount: Int, system: ActorSystem): Props = 
+    Props(new CoordinatorActor(inputs, reducerCount, system))
 }
 
-class CoordinatorActor(inputs: List[String], reducerCount: Int) extends Actor {
+class CoordinatorActor(inputs: List[String], reducerCount: Int, system: ActorSystem) extends Actor {
+
+  import system.dispatcher
 
   var isMapPhase = true
 
-  var mapUnassigned = inputs.map(input => MapTask(input, reducerCount, Some(DistributedFile(input))))
+  var mapUnassigned = inputs.map(input => 
+    MapTask(input.hashCode().toString(), reducerCount, Some(DistributedFile(input)))
+  )
   var mapInProgress = List.empty[MapTask]
   var mapDone = List.empty[MapResponse]
 
@@ -90,9 +96,12 @@ class CoordinatorActor(inputs: List[String], reducerCount: Int) extends Actor {
           mapUnassigned match {
             case head :: tail =>
               mapUnassigned = tail
+              mapInProgress = head :: mapInProgress
+              println(s"Coordinator task request: assigned map ${head.id}")
               sender() ! head.asMessage
 
             case _ =>
+              println(s"Coordinator task request: out of map tasks, sent noop")
               // all maps are in progress, just wait
               sender() ! NoopTask("").asMessage
           }
@@ -100,25 +109,31 @@ class CoordinatorActor(inputs: List[String], reducerCount: Int) extends Actor {
           reduceUnassigned match {
             case head :: tail =>
               reduceUnassigned = tail
+              reduceInProgress = head :: reduceInProgress
+              println(s"Coordinator task request: assigned reduce ${head.id}")
               sender() ! head.asMessage
 
             case _ =>
+              println(s"Coordinator task request: out of reduce tasks, sent noop")
               sender() ! NoopTask("").asMessage
           }
         }
       } else {
+        println(s"Coordinator task request: job is done, sent shutdown")
         sender() ! ShutdownTask("").asMessage
       }
     }
 
-
     case response: MapResponse => {
+      println(s"Coordinator got map response: ${response.id}")
       if (isMapPhase) {
-        val nextMapInProgress = mapInProgress.filter(_.id != response.id)
-        if (nextMapInProgress.size < mapInProgress.size) {
+        val hasMapTask = mapInProgress.find(_.id == response.id).nonEmpty
+        if (hasMapTask) {
+          val nextMapInProgress = mapInProgress.filter(_.id != response.id)
           mapDone = response :: mapDone
           mapInProgress = nextMapInProgress
           if (mapUnassigned.isEmpty && mapInProgress.isEmpty) {
+            println("switch to reduce phase")
             // switch to reduce phase
             isMapPhase = false
             reduceUnassigned = 
@@ -130,32 +145,36 @@ class CoordinatorActor(inputs: List[String], reducerCount: Int) extends Actor {
                 .map { case (partition, intermediateFiles) =>
                   ReduceTask(partition.toString, intermediateFiles)
                 }
+          } else {
+            println(s"waiting on mapUnassigned: ${mapUnassigned.size} mapInProgress: ${mapInProgress.size}")
           }
         } else {
-          println("weird map response was not in progress")
+          println(s"weird map response was not in progress ${response.id}")
         }
       } else {
-        println("weird map response in reduce phase")
+        println(s"weird map response in reduce phase ${response.id}")
       }
     }
 
     case response: ReduceResponse => {
+      println(s"Coordinator got reduce response: ${response.id}")
       if (!isMapPhase) {
-
-        val nextReduceInProgress = reduceInProgress.filter(_.id != response.id)
-        if (nextReduceInProgress.size < reduceInProgress.size) {
+        val hasReduceTask = reduceInProgress.find(_.id == response.id).nonEmpty
+        if (hasReduceTask) {
+          val nextReduceInProgress = reduceInProgress.filter(_.id != response.id)
           reduceDone = response :: reduceDone
           reduceInProgress = nextReduceInProgress
           if (reduceUnassigned.isEmpty && reduceInProgress.isEmpty) {
             isJobDone = true
+            system.scheduler.scheduleOnce(2.seconds)(system.terminate())
+          } else {
+            println(s"waiting on reduceUnassigned: ${reduceUnassigned.size} reduceInProgress: ${reduceInProgress.size}")
           }
         } else {
-          println("weird map response was not in progress")
+          println(s"weird reduce response was not in progress ${response.id}")
         }
-
-
       } else {
-        println("weird reduce response in map phase")
+        println(s"weird reduce response in map phase ${response.id}")
       }
     }
   }

@@ -14,15 +14,22 @@ import akka.http.scaladsl.Http
 import scala.concurrent.{ExecutionContext, Future, Await}
 import scala.concurrent.duration._
 import java.util.concurrent.ConcurrentHashMap
-import java.io.PrintWriter
+import java.io.{PrintWriter, BufferedWriter, FileWriter}
+import scala.annotation.tailrec
 
 object WorkerServer {
   def main(args: Array[String]): Unit = {
     args.toList match {
-      case List(appJarPath, className, indexRaw) =>
+      case List(appJarPath, className) =>
         val app = FindMapReduceApp(Paths.get(appJarPath), className)
         implicit val system = ActorSystem("Worker")
-        new WorkerServer(app, indexRaw.toInt).run(app)
+        import system.dispatcher
+
+        new WorkerServer(app).run(app).recoverWith {
+          case ex => 
+            ex.printStackTrace()
+            Future.failed(ex)
+        }
       case _ => 
         sys.error("expected: appJarPath port reducerCount")
         sys.exit(1)
@@ -30,31 +37,34 @@ object WorkerServer {
   }
 }
 
-class WorkerServer(app: MapReduceApp, index: Int)(implicit system: ActorSystem) {
+class WorkerServer(app: MapReduceApp)(implicit system: ActorSystem) {
   def run(app: MapReduceApp): Future[Unit] = {
 
     import system.dispatcher
     
-    val port = WorkerUtils.portFromIndex(index)
+    val worker = new WorkerServiceImpl(app)
 
-    val worker = new WorkerServiceImpl(app, index)
-
-    val binding = Http().newServerAt("127.0.0.1", port).bind(WorkerHandler(worker))
-    binding.flatMap(_ => worker.run())
+    val binding = Http().newServerAt("127.0.0.1", 0).bind(WorkerHandler(worker))
+    binding.flatMap{info => 
+      worker.setPort(info.localAddress.getPort())
+      worker.run()
+    }
   }
 }
 
-class WorkerServiceImpl(app: MapReduceApp, index: Int)(
+class WorkerServiceImpl(app: MapReduceApp)(
     implicit
     system: ActorSystem,
     mat: Materializer
 ) extends Worker {
 
+  var port = 0
+  def setPort(value: Int): Unit = {
+    port = value
+  }
+
   import system.dispatcher
   private implicit val scheduler: akka.actor.Scheduler = system.scheduler
-
-  private val port = WorkerUtils.portFromIndex(index)
-
   
   import system.dispatcher
 
@@ -74,15 +84,22 @@ class WorkerServiceImpl(app: MapReduceApp, index: Int)(
 
   def run(): Future[Unit] = {
     import TaskMessage.SealedValue._
-    val msg = Await.result(coordinator.requestTask(empty), 10.seconds)
+    coordinator.requestTask(empty).map(_.sealedValue).flatMap {
+      case Map(task) => 
+        map(task)
 
-    msg.sealedValue match {
-      case Map(task) => map(task)
-      case Reduce(task) => reduce(task)
-      case _: Shutdown => system.terminate().map(_ => ())
-      case _: Noop | Empty => Future(Thread.sleep(1000))
-    }
-    
+      case Reduce(task) => 
+        reduce(task)
+
+      case _: Shutdown => 
+        println(s"\t\t\t\t\t\t\t\t\t[Shutdown] worker: $port")
+        system.terminate().map(_ => ())
+
+      case _: Noop | Empty => {
+        println(s"\t\t\t\t\t\t\t\t\t[zzZZzz] worker: $port")
+        Future(Thread.sleep(1000))
+      }
+    }.flatMap(_ => run())
   }
 
   // config
@@ -95,9 +112,9 @@ class WorkerServiceImpl(app: MapReduceApp, index: Int)(
   }
 
   private def map(task: MapTask): Future[Unit] = {
-    Future {
-      task.inputFile.foreach { file =>
-        println(s"[MAP] worker: $index got ${task.id}")
+    task.inputFile match {
+      case Some(file) => {
+        println(s"\t\t\t\t\t\t\t\t\t[MAP] worker: $port got ${task.id}")
 
         val content = Files.readString(Paths.get(file.filename))
         val buffer = List.newBuilder[(String, String)]
@@ -107,7 +124,7 @@ class WorkerServiceImpl(app: MapReduceApp, index: Int)(
           )
         } catch {
           case e: Exception if e.getMessage() == "Boom" =>
-            println(s"crash in map, worker: $index")
+            println(s"\t\t\t\t\t\t\t\t\tcrash in map, worker: $port")
             sys.exit(1)
         }
 
@@ -128,8 +145,10 @@ class WorkerServiceImpl(app: MapReduceApp, index: Int)(
               )
             }
 
-        coordinator.mapDone(MapResponse(task.id, result))
+        println(s"\t\t\t\t\t\t\t\t\t[MAP] worker: $port done ${task.id}")
+        coordinator.mapDone(MapResponse(task.id, result)).map(_ => ())
       }
+      case None => Future.failed(new Exception("no inputFile for map"))
     }
   }
 
@@ -169,12 +188,12 @@ class WorkerServiceImpl(app: MapReduceApp, index: Int)(
           } else readIntermediateFile(file)
         )
       )
-      .map { contents =>
+      .flatMap { contents =>
 
-        println(s"[REDUCE] worker: $index got ${task.id}")
+        println(s"\t\t\t\t\t\t\t\t\t[REDUCE] worker: $port got ${task.id}")
 
-        val filename = s"mr-out-$index"
-        val writer = new PrintWriter(filename, "UTF-8")
+        val filename = s"mr-out-${task.id}"
+        val writer = new PrintWriter(new BufferedWriter(new FileWriter(filename, true)))
 
         val byKey =
           contents
@@ -190,19 +209,20 @@ class WorkerServiceImpl(app: MapReduceApp, index: Int)(
         for ((key, values) <- byKey) {
           try {
             app.reduce(key, values) { v =>
-              // println(s"[REDUCE] worker: $index write: $v")
-              writer.println(s"$key $v")
+              // println(s"\t\t\t\t\t\t\t\t\t[REDUCE] worker: $port write: $v")
+              writer.append(s"$key $v\n")
             }
           } catch {
             case e: Exception if e.getMessage() == "Boom" =>
-              println(s"crash in reduce, worker: $index")
+              println(s"\t\t\t\t\t\t\t\t\tcrash in reduce, worker: $port")
               sys.exit(1)
           }
         }
 
         writer.close()
 
-        coordinator.reduceDone(ReduceResponse(task.id, Some(DistributedFile(filename))))
+        println(s"\t\t\t\t\t\t\t\t\t[REDUCE] worker: $port done ${task.id}")
+        coordinator.reduceDone(ReduceResponse(task.id, Some(DistributedFile(filename)))).map(_ => ())
       }
   }
 }
