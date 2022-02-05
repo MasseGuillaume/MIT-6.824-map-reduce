@@ -99,7 +99,13 @@ class WorkerServiceImpl(app: MapReduceApp)(
         println(s"\t\t\t\t\t\t\t\t\t[zzZZzz] worker: $port")
         Future(Thread.sleep(1000))
       }
-    }.flatMap(_ => run())
+    }
+    .recover {
+      case ex: io.grpc.StatusRuntimeException =>
+        // Coordinator is unavailable stop the worker
+        system.terminate()
+    }
+    .flatMap(_ => run())
   }
 
   // config

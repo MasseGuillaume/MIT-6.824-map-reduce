@@ -231,7 +231,7 @@ loop_workers () {
     echo "Restarting worker"
     timeout -k 2s 180s ../mrworker ../apps/crash.jar Crash
     sleep 1
-  done;
+  done
 }
 
 loop_workers &
