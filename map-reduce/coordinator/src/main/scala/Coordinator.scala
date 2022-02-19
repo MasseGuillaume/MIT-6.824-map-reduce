@@ -67,12 +67,16 @@ class CoordinatorImpl(inputs: List[String], reducerCount: Int)(implicit system: 
 object CoordinatorActor {
   case object TaskRequest
 
+  case class AssureMapCompletion(task: MapTask)
+  case class AssureReduceCompletion(task: ReduceTask)
+
   def props(inputs: List[String], reducerCount: Int, system: ActorSystem): Props = 
     Props(new CoordinatorActor(inputs, reducerCount, system))
 }
 
 class CoordinatorActor(inputs: List[String], reducerCount: Int, system: ActorSystem) extends Actor {
 
+  import CoordinatorActor._
   import system.dispatcher
 
   var isMapPhase = true
@@ -90,7 +94,7 @@ class CoordinatorActor(inputs: List[String], reducerCount: Int, system: ActorSys
   var isJobDone = false
 
   def receive = {
-    case CoordinatorActor.TaskRequest => {
+    case TaskRequest => {
       if (!isJobDone) {
         if (isMapPhase) {
           mapUnassigned match {
@@ -98,6 +102,9 @@ class CoordinatorActor(inputs: List[String], reducerCount: Int, system: ActorSys
               mapUnassigned = tail
               mapInProgress = head :: mapInProgress
               println(s"Coordinator task request: assigned map ${head.id}")
+              system.scheduler.scheduleOnce(10.seconds)(
+                self ! AssureMapCompletion(head)
+              )
               sender() ! head.asMessage
 
             case _ =>
@@ -111,6 +118,9 @@ class CoordinatorActor(inputs: List[String], reducerCount: Int, system: ActorSys
               reduceUnassigned = tail
               reduceInProgress = head :: reduceInProgress
               println(s"Coordinator task request: assigned reduce ${head.id}")
+              system.scheduler.scheduleOnce(10.seconds)(
+                self ! AssureReduceCompletion(head)
+              )
               sender() ! head.asMessage
 
             case _ =>
@@ -123,6 +133,16 @@ class CoordinatorActor(inputs: List[String], reducerCount: Int, system: ActorSys
         sender() ! ShutdownTask("").asMessage
       }
     }
+
+    case AssureMapCompletion(task) =>
+      val isCompleted = mapInProgress.find(_.id == task.id).nonEmpty
+      if (!isCompleted) {
+        
+      } else {
+        println(s"Coordinator assure map ok ${task.id}")
+      }
+
+    case AssureReduceCompletion(task) =>
 
     case response: MapResponse => {
       println(s"Coordinator got map response: ${response.id}")
